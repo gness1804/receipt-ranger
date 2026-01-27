@@ -30,4 +30,6 @@ Please first create a plan with steps, and let me approve the plan before doing 
 - The application will know which receipts it's already processed in order to not process them again, unless the user specifies that they want this behavior. 
 - The application will use an LLM with BAML for the receipt processing.
 - The MVP will be back-end only. Future versions will introduce a front-end and possibly other features, such as uploading a receipt directly from a front-end. But this MVP covered by this ticket will only be back-end logic. 
-- The application's run will be triggered by something like `python3 main.py`. 
+- The application's run will be triggered by something like `python3 main.py`.
+
+<!-- DONE -->
