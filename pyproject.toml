@@ -1,0 +1,5 @@
+[tool.ruff]
+exclude = ["baml_client/*", "baml_src/*"]
+
+[tool.black]
+exclude = '/(baml_client|baml_src)/'
