@@ -4,7 +4,6 @@ import json
 import os
 from unittest.mock import MagicMock, patch
 
-import pytest
 
 import main
 
@@ -53,7 +52,7 @@ class TestFileHash:
 class TestLoadSaveState:
     def test_load_missing_file(self, tmp_path, monkeypatch):
         monkeypatch.setattr(main, "STATE_FILE", str(tmp_path / "missing.json"))
-        assert main.load_state() == {}
+        assert main.load_state() == {"files": {}, "receipts": {}}
 
     def test_roundtrip(self, tmp_path, monkeypatch):
         state_file = str(tmp_path / "state.json")
@@ -61,7 +60,7 @@ class TestLoadSaveState:
         state = {"receipt.jpg": "abc123"}
         main.save_state(state)
         loaded = main.load_state()
-        assert loaded == state
+        assert loaded == {"files": {"receipt.jpg": "abc123"}, "receipts": {}}
 
 
 class TestGetReceiptsToProcess:
@@ -243,3 +242,43 @@ class TestExtractReceipt:
         assert result["vendor"] == "Test Store"
         assert result["category"] == ["Food/restaurants"]
         mock_b.ExtractReceiptFromImage.assert_called_once()
+
+
+class TestDedupeReceipts:
+    def test_dedupes_by_source_hash(self):
+        receipts = [
+            {"source_hash": "abc", "amount": 1.0},
+            {"source_hash": "abc", "amount": 2.0},
+            {"source_hash": "def", "amount": 3.0},
+        ]
+        deduped = main.dedupe_receipts(receipts)
+        assert len(deduped) == 2
+        assert any(r["amount"] == 2.0 for r in deduped)
+
+
+class TestFilterReceipts:
+    def test_filters_by_month_vendor_amount_category(self):
+        receipts = [
+            {
+                "amount": 12.50,
+                "date": "01/15/2026",
+                "vendor": "Taco Cabana",
+                "category": ["Food/restaurants"],
+            },
+            {
+                "amount": 55.00,
+                "date": "02/20/2026",
+                "vendor": "Target",
+                "category": ["Clothes"],
+            },
+        ]
+        filtered = main._filter_receipts(
+            receipts,
+            month="2026-01",
+            vendor="taco",
+            min_amount=10.0,
+            max_amount=20.0,
+            category="food",
+        )
+        assert len(filtered) == 1
+        assert filtered[0]["vendor"] == "Taco Cabana"

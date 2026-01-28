@@ -6,6 +6,7 @@ import hashlib
 import json
 import os
 import sys
+from datetime import datetime
 
 import baml_py
 
@@ -52,18 +53,155 @@ def load_state() -> dict:
     """Load the processed receipts state file."""
     if os.path.exists(STATE_FILE):
         with open(STATE_FILE, "r") as f:
-            return json.load(f)
-    return {}
+            return _normalize_state(json.load(f))
+    return _normalize_state({})
 
 
 def save_state(state: dict) -> None:
     """Save the processed receipts state file."""
+    state = _normalize_state(state)
     with open(STATE_FILE, "w") as f:
         json.dump(state, f, indent=2)
 
 
-def get_receipts_to_process(allow_duplicates: bool) -> list[tuple[str, str]]:
-    """Return list of (filename, filepath) tuples for receipts to process.
+def _normalize_state(state: dict) -> dict:
+    if not isinstance(state, dict):
+        return {"files": {}, "receipts": {}}
+    if "files" in state or "receipts" in state:
+        return {
+            "files": state.get("files", {}),
+            "receipts": state.get("receipts", {}),
+        }
+    return {"files": state, "receipts": {}}
+
+
+def _receipt_key(receipt: dict) -> str:
+    for key in ("source_hash", "id"):
+        value = receipt.get(key)
+        if value:
+            return str(value)
+    amount = receipt.get("amount", "")
+    date = receipt.get("date", "")
+    vendor = receipt.get("vendor", "")
+    category = receipt.get("category") or []
+    category_str = ",".join(category)
+    return f"{amount}|{date}|{vendor}|{category_str}"
+
+
+def dedupe_receipts(receipts: list[dict]) -> list[dict]:
+    deduped = {}
+    for receipt in receipts:
+        deduped[_receipt_key(receipt)] = receipt
+    return list(deduped.values())
+
+
+def _parse_date(date_str: str) -> datetime | None:
+    if not date_str:
+        return None
+    for fmt in ("%m/%d/%Y", "%Y-%m-%d", "%m/%d/%y"):
+        try:
+            return datetime.strptime(date_str, fmt)
+        except ValueError:
+            continue
+    return None
+
+
+def _filter_receipts(
+    receipts: list[dict],
+    month: str | None,
+    vendor: str | None,
+    min_amount: float | None,
+    max_amount: float | None,
+    category: str | None,
+) -> list[dict]:
+    results = []
+    target_month = None
+    if month:
+        try:
+            target_month = datetime.strptime(month, "%Y-%m")
+        except ValueError:
+            print("Invalid --month format. Use YYYY-MM.", file=sys.stderr)
+            return []
+
+    vendor_filter = vendor.lower() if vendor else None
+    category_filter = category.lower() if category else None
+
+    for receipt in receipts:
+        if vendor_filter and vendor_filter not in receipt.get("vendor", "").lower():
+            continue
+
+        if category_filter:
+            categories = receipt.get("category") or []
+            if not any(category_filter in c.lower() for c in categories):
+                continue
+
+        amount = receipt.get("amount")
+        if min_amount is not None and (amount is None or amount < min_amount):
+            continue
+        if max_amount is not None and (amount is None or amount > max_amount):
+            continue
+
+        if target_month:
+            parsed_date = _parse_date(receipt.get("date", ""))
+            if not parsed_date:
+                continue
+            if (
+                parsed_date.year != target_month.year
+                or parsed_date.month != target_month.month
+            ):
+                continue
+
+        results.append(receipt)
+
+    return results
+
+
+def _load_receipts_from_output(output_dir: str) -> list[dict]:
+    if not os.path.isdir(output_dir):
+        return []
+    receipts = []
+    for filename in sorted(os.listdir(output_dir)):
+        if not (filename.startswith("receipts") and filename.endswith(".json")):
+            continue
+        path = os.path.join(output_dir, filename)
+        try:
+            with open(path, "r") as f:
+                data = json.load(f)
+            if isinstance(data, list):
+                receipts.extend(data)
+        except (OSError, json.JSONDecodeError):
+            continue
+    return receipts
+
+
+def _build_tsv_lines(results: list[dict]) -> list[str]:
+    header = "Amount\tDate\t\tVendor\tCategory"
+    lines = [header]
+    for receipt in results:
+        category = ", ".join(receipt["category"]) if receipt.get("category") else ""
+        amount = f"{receipt['amount']:.2f}"
+        line = f"{amount}\t{receipt['date']}\t\t{receipt['vendor']}\t{category}"
+        lines.append(line)
+    return lines
+
+
+def _print_tsv(results: list[dict]) -> None:
+    print("\n".join(_build_tsv_lines(results)))
+
+
+def _merge_receipts_into_state(state: dict, receipts: list[dict]) -> None:
+    for receipt in receipts:
+        state["receipts"][_receipt_key(receipt)] = receipt
+
+
+def _load_stored_receipts(state: dict) -> list[dict]:
+    receipts = list(state.get("receipts", {}).values())
+    receipts.extend(_load_receipts_from_output(OUTPUT_DIR))
+    return dedupe_receipts(receipts)
+
+
+def get_receipts_to_process(allow_duplicates: bool) -> list[tuple[str, str, str]]:
+    """Return list of (filename, filepath, file_hash) tuples for receipts to process.
 
     Skips already-processed files unless allow_duplicates is True.
     """
@@ -72,6 +210,7 @@ def get_receipts_to_process(allow_duplicates: bool) -> list[tuple[str, str]]:
         return []
 
     state = load_state()
+    seen_files = state.get("files", {})
     to_process = []
 
     for filename in sorted(os.listdir(RECEIPTS_DIR)):
@@ -82,12 +221,12 @@ def get_receipts_to_process(allow_duplicates: bool) -> list[tuple[str, str]]:
         if not os.path.isfile(filepath):
             continue
 
+        current_hash = file_hash(filepath)
         if not allow_duplicates:
-            current_hash = file_hash(filepath)
-            if filename in state and state[filename] == current_hash:
+            if filename in seen_files and seen_files[filename] == current_hash:
                 continue
 
-        to_process.append((filename, filepath))
+        to_process.append((filename, filepath, current_hash))
 
     return to_process
 
@@ -113,29 +252,23 @@ def extract_receipt(filepath: str) -> dict:
     }
 
 
-def write_json(results: list[dict]) -> None:
+def write_json(results: list[dict], output_path: str | None = None) -> None:
     """Write results to JSON output file."""
+    output_path = output_path or OUTPUT_JSON
     os.makedirs(OUTPUT_DIR, exist_ok=True)
-    with open(OUTPUT_JSON, "w") as f:
+    with open(output_path, "w") as f:
         json.dump(results, f, indent=2)
 
 
-def write_tsv(results: list[dict]) -> None:
+def write_tsv(results: list[dict], output_path: str | None = None) -> None:
     """Write results to a TSV file compatible with Google Sheets.
 
     Columns: Amount | Date | (blank) | Vendor | Category
     """
+    output_path = output_path or OUTPUT_TSV
     os.makedirs(OUTPUT_DIR, exist_ok=True)
-    header = "Amount\tDate\t\tVendor\tCategory"
-    lines = [header]
-
-    for r in results:
-        category = ", ".join(r["category"]) if r["category"] else ""
-        amount = f"{r['amount']:.2f}"
-        line = f"{amount}\t{r['date']}\t\t{r['vendor']}\t{category}"
-        lines.append(line)
-
-    with open(OUTPUT_TSV, "w") as f:
+    lines = _build_tsv_lines(results)
+    with open(output_path, "w") as f:
         f.write("\n".join(lines) + "\n")
 
 
@@ -179,6 +312,16 @@ def print_table(results: list[dict]) -> None:
         )
 
 
+def _timestamp() -> str:
+    return datetime.now().strftime("%Y%m%d-%H%M%S")
+
+
+def _build_output_paths(timestamp: str) -> tuple[str, str]:
+    json_path = os.path.join(OUTPUT_DIR, f"receipts-{timestamp}.json")
+    tsv_path = os.path.join(OUTPUT_DIR, f"receipts-{timestamp}.tsv")
+    return json_path, tsv_path
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(
         description="Receipt Ranger -- extract structured data from receipt images."
@@ -188,7 +331,70 @@ def main() -> None:
         action="store_true",
         help="Reprocess all receipts, including previously processed ones.",
     )
+    parser.add_argument(
+        "--table",
+        action="store_true",
+        help="Print a table from stored receipts without reprocessing.",
+    )
+    parser.add_argument(
+        "--tsv",
+        action="store_true",
+        help="Print a TSV table from stored receipts (filters apply).",
+    )
+    parser.add_argument(
+        "--tsv-all",
+        action="store_true",
+        help="Print a TSV table of all stored receipts.",
+    )
+    parser.add_argument(
+        "--month",
+        help="Filter stored receipts by month (YYYY-MM).",
+    )
+    parser.add_argument(
+        "--vendor",
+        help="Filter stored receipts by vendor substring.",
+    )
+    parser.add_argument(
+        "--min-amount",
+        type=float,
+        help="Filter stored receipts with amount >= value.",
+    )
+    parser.add_argument(
+        "--max-amount",
+        type=float,
+        help="Filter stored receipts with amount <= value.",
+    )
+    parser.add_argument(
+        "--category",
+        help="Filter stored receipts by category substring.",
+    )
     args = parser.parse_args()
+
+    if args.table or args.tsv or args.tsv_all:
+        state = load_state()
+        receipts = _load_stored_receipts(state)
+        if not receipts:
+            print("No stored receipts found.")
+            sys.exit(0)
+
+        if args.tsv or args.tsv_all:
+            if args.tsv_all:
+                filtered = receipts
+            else:
+                filtered = _filter_receipts(
+                    receipts,
+                    month=args.month,
+                    vendor=args.vendor,
+                    min_amount=args.min_amount,
+                    max_amount=args.max_amount,
+                    category=args.category,
+                )
+            _print_tsv(dedupe_receipts(filtered))
+
+        if args.table:
+            print_table(dedupe_receipts(receipts))
+
+        sys.exit(0)
 
     to_process = get_receipts_to_process(allow_duplicates=args.duplicates)
 
@@ -201,13 +407,14 @@ def main() -> None:
     results = []
     state = load_state()
 
-    for filename, filepath in to_process:
+    for filename, filepath, file_h in to_process:
         print(f"  Extracting: {filename}...")
         try:
             receipt_data = extract_receipt(filepath)
             receipt_data["source_file"] = filename
+            receipt_data["source_hash"] = file_h
             results.append(receipt_data)
-            state[filename] = file_hash(filepath)
+            state["files"][filename] = file_h
         except Exception as e:
             print(f"  ERROR processing {filename}: {e}")
 
@@ -215,12 +422,19 @@ def main() -> None:
         print("\nNo receipts were successfully processed.")
         sys.exit(1)
 
-    write_json(results)
-    write_tsv(results)
+    deduped_results = dedupe_receipts(results)
+    timestamp = _timestamp()
+    output_json, output_tsv = _build_output_paths(timestamp)
+    write_json(deduped_results, output_json)
+    write_tsv(deduped_results, output_tsv)
+    _merge_receipts_into_state(state, deduped_results)
     save_state(state)
 
-    print(f"\nProcessed {len(results)} receipt(s). Output saved to {OUTPUT_DIR}/\n")
-    print_table(results)
+    print(
+        f"\nProcessed {len(deduped_results)} receipt(s). "
+        f"Output saved to {OUTPUT_DIR}/\n"
+    )
+    print_table(deduped_results)
 
 
 if __name__ == "__main__":

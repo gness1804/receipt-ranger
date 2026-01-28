@@ -43,12 +43,30 @@ To reprocess all receipts (including previously processed ones):
 python3 main.py --duplicates
 ```
 
+To print a table from stored receipts without reprocessing:
+
+```bash
+python3 main.py --table
+```
+
+To print a TSV table of stored receipts with optional filters:
+
+```bash
+python3 main.py --tsv --month 2026-01 --vendor taco --min-amount 10 --max-amount 50 --category food
+```
+
+To print a TSV table of all stored receipts:
+
+```bash
+python3 main.py --tsv-all
+```
+
 ### Output
 
 Results are written to the `output/` directory:
 
-- `receipts.json` -- full structured data for all processed receipts
-- `receipts.tsv` -- tab-separated table for pasting into Google Sheets
+- `receipts-{timestamp}.json` -- full structured data for the latest processing run
+- `receipts-{timestamp}.tsv` -- tab-separated table for pasting into Google Sheets
 
 The table format:
 
@@ -56,6 +74,8 @@ The table format:
 |--------|------|-|--------|----------|
 
 The blank column is reserved for manual annotations.
+
+Stored receipt metadata (including processed hashes and extracted receipts) is tracked in `processed_receipts.json`.
 
 ## Development
 
