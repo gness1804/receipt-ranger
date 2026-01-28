@@ -1,0 +1,39 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "receipt-ranger"
+version = "0.2.0"
+description = "Receipt scanner that extracts structured data from receipt images using BAML and LLMs"
+readme = "README.md"
+requires-python = ">=3.10"
+license = {text = "MIT"}
+keywords = ["receipts", "ocr", "baml", "llm", "structured-extraction"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+]
+
+dependencies = [
+    "baml-py>=0.218.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0.0",
+    "bump2version>=1.0.0",
+]
+
+[tool.ruff]
+exclude = ["baml_client/*", "baml_src/*"]
+
+[tool.black]
+exclude = '/(baml_client|baml_src)/'
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = "test_*.py"
+python_functions = "test_*"
