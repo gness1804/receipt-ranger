@@ -240,7 +240,7 @@ class TestExtractReceipt:
 
         assert result["amount"] == 25.50
         assert result["vendor"] == "Test Store"
-        assert result["category"] == ["Food/restaurants"]
+        assert result["category"] == ["Food & Restaurants"]
         mock_b.ExtractReceiptFromImage.assert_called_once()
 
 
@@ -263,13 +263,13 @@ class TestFilterReceipts:
                 "amount": 12.50,
                 "date": "01/15/2026",
                 "vendor": "Taco Cabana",
-                "category": ["Food/restaurants"],
+                "category": ["Food & Restaurants"],
             },
             {
                 "amount": 55.00,
                 "date": "02/20/2026",
                 "vendor": "Target",
-                "category": ["Clothes"],
+                "category": ["Clothing & Shoes"],
             },
         ]
         filtered = main._filter_receipts(
@@ -278,7 +278,20 @@ class TestFilterReceipts:
             vendor="taco",
             min_amount=10.0,
             max_amount=20.0,
-            category="food",
+            category="Food & Restaurants",
         )
         assert len(filtered) == 1
         assert filtered[0]["vendor"] == "Taco Cabana"
+
+
+class TestNormalizeCategories:
+    def test_maps_legacy_categories(self):
+        assert main.normalize_categories(["Food/restaurants"]) == ["Food & Restaurants"]
+
+    def test_maps_unknown_to_other(self):
+        assert main.normalize_categories(["Random"]) == ["Other"]
+
+
+class TestParseCategory:
+    def test_parse_category_accepts_alias(self):
+        assert main._parse_category("food and restaurants") == "Food & Restaurants"

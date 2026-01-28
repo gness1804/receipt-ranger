@@ -61,6 +61,34 @@ To print a TSV table of all stored receipts:
 python3 main.py --tsv-all
 ```
 
+### Canonical categories
+
+Receipt categories are constrained to the following canonical values:
+
+- Food & Restaurants
+- Groceries
+- Transportation
+- Travel
+- Lodging
+- Utilities
+- Housing & Rent
+- Health & Medical
+- Insurance
+- Entertainment & Recreation
+- Clothing & Shoes
+- Electronics & Gadgets
+- Home & Garden
+- Office & Supplies
+- Education
+- Gifts & Donations
+- Subscriptions & Memberships
+- Fees & Services
+- Taxes
+- Childcare
+- Pet Care
+- Personal Care
+- Other
+
 ### Output
 
 Results are written to the `output/` directory:

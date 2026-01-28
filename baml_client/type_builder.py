@@ -22,12 +22,16 @@ class TypeBuilder(type_builder.TypeBuilder):
         super().__init__(classes=set(
           ["Receipt","Resume",]
         ), enums=set(
-          []
+          ["ReceiptCategory",]
         ), runtime=DO_NOT_USE_DIRECTLY_UNLESS_YOU_KNOW_WHAT_YOURE_DOING_RUNTIME)
 
     # #########################################################################
-    # Generated enums 0
+    # Generated enums 1
     # #########################################################################
+
+    @property
+    def ReceiptCategory(self) -> "ReceiptCategoryViewer":
+        return ReceiptCategoryViewer(self)
 
 
     # #########################################################################
@@ -45,8 +49,134 @@ class TypeBuilder(type_builder.TypeBuilder):
 
 
 # #########################################################################
-# Generated enums 0
+# Generated enums 1
 # #########################################################################
+
+class ReceiptCategoryAst:
+    def __init__(self, tb: type_builder.TypeBuilder):
+        _tb = tb._tb # type: ignore (we know how to use this private attribute)
+        self._bldr = _tb.enum("ReceiptCategory")
+        self._values: typing.Set[str] = set([  "FOOD_RESTAURANTS",  "GROCERIES",  "TRANSPORTATION",  "TRAVEL",  "LODGING",  "UTILITIES",  "HOUSING_RENT",  "HEALTH_MEDICAL",  "INSURANCE",  "ENTERTAINMENT_RECREATION",  "CLOTHING_SHOES",  "ELECTRONICS_GADGETS",  "HOME_GARDEN",  "OFFICE_SUPPLIES",  "EDUCATION",  "GIFTS_DONATIONS",  "SUBSCRIPTIONS_MEMBERSHIPS",  "FEES_SERVICES",  "TAXES",  "CHILDCARE",  "PET_CARE",  "PERSONAL_CARE",  "OTHER",  ])
+        self._vals = ReceiptCategoryValues(self._bldr, self._values)
+
+    def type(self) -> baml_py.FieldType:
+        return self._bldr.field()
+
+    @property
+    def values(self) -> "ReceiptCategoryValues":
+        return self._vals
+
+
+class ReceiptCategoryViewer(ReceiptCategoryAst):
+    def __init__(self, tb: type_builder.TypeBuilder):
+        super().__init__(tb)
+
+    
+    def list_values(self) -> typing.List[typing.Tuple[str, type_builder.EnumValueViewer]]:
+        return [(name, type_builder.EnumValueViewer(self._bldr.value(name))) for name in self._values]
+    
+
+class ReceiptCategoryValues:
+    def __init__(self, enum_bldr: baml_py.EnumBuilder, values: typing.Set[str]):
+        self.__bldr = enum_bldr
+        self.__values = values # type: ignore (we know how to use this private attribute) # noqa: F821
+
+    
+    
+    @property
+    def FOOD_RESTAURANTS(self) -> type_builder.EnumValueViewer:
+        return type_builder.EnumValueViewer(self.__bldr.value("FOOD_RESTAURANTS"))
+    
+    @property
+    def GROCERIES(self) -> type_builder.EnumValueViewer:
+        return type_builder.EnumValueViewer(self.__bldr.value("GROCERIES"))
+    
+    @property
+    def TRANSPORTATION(self) -> type_builder.EnumValueViewer:
+        return type_builder.EnumValueViewer(self.__bldr.value("TRANSPORTATION"))
+    
+    @property
+    def TRAVEL(self) -> type_builder.EnumValueViewer:
+        return type_builder.EnumValueViewer(self.__bldr.value("TRAVEL"))
+    
+    @property
+    def LODGING(self) -> type_builder.EnumValueViewer:
+        return type_builder.EnumValueViewer(self.__bldr.value("LODGING"))
+    
+    @property
+    def UTILITIES(self) -> type_builder.EnumValueViewer:
+        return type_builder.EnumValueViewer(self.__bldr.value("UTILITIES"))
+    
+    @property
+    def HOUSING_RENT(self) -> type_builder.EnumValueViewer:
+        return type_builder.EnumValueViewer(self.__bldr.value("HOUSING_RENT"))
+    
+    @property
+    def HEALTH_MEDICAL(self) -> type_builder.EnumValueViewer:
+        return type_builder.EnumValueViewer(self.__bldr.value("HEALTH_MEDICAL"))
+    
+    @property
+    def INSURANCE(self) -> type_builder.EnumValueViewer:
+        return type_builder.EnumValueViewer(self.__bldr.value("INSURANCE"))
+    
+    @property
+    def ENTERTAINMENT_RECREATION(self) -> type_builder.EnumValueViewer:
+        return type_builder.EnumValueViewer(self.__bldr.value("ENTERTAINMENT_RECREATION"))
+    
+    @property
+    def CLOTHING_SHOES(self) -> type_builder.EnumValueViewer:
+        return type_builder.EnumValueViewer(self.__bldr.value("CLOTHING_SHOES"))
+    
+    @property
+    def ELECTRONICS_GADGETS(self) -> type_builder.EnumValueViewer:
+        return type_builder.EnumValueViewer(self.__bldr.value("ELECTRONICS_GADGETS"))
+    
+    @property
+    def HOME_GARDEN(self) -> type_builder.EnumValueViewer:
+        return type_builder.EnumValueViewer(self.__bldr.value("HOME_GARDEN"))
+    
+    @property
+    def OFFICE_SUPPLIES(self) -> type_builder.EnumValueViewer:
+        return type_builder.EnumValueViewer(self.__bldr.value("OFFICE_SUPPLIES"))
+    
+    @property
+    def EDUCATION(self) -> type_builder.EnumValueViewer:
+        return type_builder.EnumValueViewer(self.__bldr.value("EDUCATION"))
+    
+    @property
+    def GIFTS_DONATIONS(self) -> type_builder.EnumValueViewer:
+        return type_builder.EnumValueViewer(self.__bldr.value("GIFTS_DONATIONS"))
+    
+    @property
+    def SUBSCRIPTIONS_MEMBERSHIPS(self) -> type_builder.EnumValueViewer:
+        return type_builder.EnumValueViewer(self.__bldr.value("SUBSCRIPTIONS_MEMBERSHIPS"))
+    
+    @property
+    def FEES_SERVICES(self) -> type_builder.EnumValueViewer:
+        return type_builder.EnumValueViewer(self.__bldr.value("FEES_SERVICES"))
+    
+    @property
+    def TAXES(self) -> type_builder.EnumValueViewer:
+        return type_builder.EnumValueViewer(self.__bldr.value("TAXES"))
+    
+    @property
+    def CHILDCARE(self) -> type_builder.EnumValueViewer:
+        return type_builder.EnumValueViewer(self.__bldr.value("CHILDCARE"))
+    
+    @property
+    def PET_CARE(self) -> type_builder.EnumValueViewer:
+        return type_builder.EnumValueViewer(self.__bldr.value("PET_CARE"))
+    
+    @property
+    def PERSONAL_CARE(self) -> type_builder.EnumValueViewer:
+        return type_builder.EnumValueViewer(self.__bldr.value("PERSONAL_CARE"))
+    
+    @property
+    def OTHER(self) -> type_builder.EnumValueViewer:
+        return type_builder.EnumValueViewer(self.__bldr.value("OTHER"))
+    
+    
+
 
 
 # #########################################################################

@@ -33,6 +33,62 @@ MIME_TYPES = {
     ".tiff": "image/tiff",
 }
 
+CATEGORY_ENUM_TO_LABEL = {
+    "FOOD_RESTAURANTS": "Food & Restaurants",
+    "GROCERIES": "Groceries",
+    "TRANSPORTATION": "Transportation",
+    "TRAVEL": "Travel",
+    "LODGING": "Lodging",
+    "UTILITIES": "Utilities",
+    "HOUSING_RENT": "Housing & Rent",
+    "HEALTH_MEDICAL": "Health & Medical",
+    "INSURANCE": "Insurance",
+    "ENTERTAINMENT_RECREATION": "Entertainment & Recreation",
+    "CLOTHING_SHOES": "Clothing & Shoes",
+    "ELECTRONICS_GADGETS": "Electronics & Gadgets",
+    "HOME_GARDEN": "Home & Garden",
+    "OFFICE_SUPPLIES": "Office & Supplies",
+    "EDUCATION": "Education",
+    "GIFTS_DONATIONS": "Gifts & Donations",
+    "SUBSCRIPTIONS_MEMBERSHIPS": "Subscriptions & Memberships",
+    "FEES_SERVICES": "Fees & Services",
+    "TAXES": "Taxes",
+    "CHILDCARE": "Childcare",
+    "PET_CARE": "Pet Care",
+    "PERSONAL_CARE": "Personal Care",
+    "OTHER": "Other",
+}
+
+CANONICAL_CATEGORIES = list(CATEGORY_ENUM_TO_LABEL.values())
+CATEGORY_ALIASES = {
+    "food/restaurants": "Food & Restaurants",
+    "food and restaurants": "Food & Restaurants",
+    "food & restaurants": "Food & Restaurants",
+    "restaurants": "Food & Restaurants",
+    "clothing": "Clothing & Shoes",
+    "clothes": "Clothing & Shoes",
+    "entertainment": "Entertainment & Recreation",
+    "housing": "Housing & Rent",
+    "rent": "Housing & Rent",
+}
+
+
+def _category_key(value: str) -> str:
+    return " ".join(value.strip().lower().split())
+
+
+def _build_category_lookup() -> dict[str, str]:
+    lookup = {}
+    for enum_value, label in CATEGORY_ENUM_TO_LABEL.items():
+        lookup[_category_key(enum_value)] = label
+        lookup[_category_key(label)] = label
+    for alias, label in CATEGORY_ALIASES.items():
+        lookup[_category_key(alias)] = label
+    return lookup
+
+
+CATEGORY_LOOKUP = _build_category_lookup()
+
 
 def is_valid_image(filename: str) -> bool:
     """Check if a filename has a supported image extension."""
@@ -84,7 +140,7 @@ def _receipt_key(receipt: dict) -> str:
     date = receipt.get("date", "")
     vendor = receipt.get("vendor", "")
     category = receipt.get("category") or []
-    category_str = ",".join(category)
+    category_str = ",".join(str(c) for c in category)
     return f"{amount}|{date}|{vendor}|{category_str}"
 
 
@@ -93,6 +149,31 @@ def dedupe_receipts(receipts: list[dict]) -> list[dict]:
     for receipt in receipts:
         deduped[_receipt_key(receipt)] = receipt
     return list(deduped.values())
+
+
+def normalize_categories(categories: list) -> list[str]:
+    if not categories:
+        return []
+
+    normalized = []
+    seen = set()
+    for raw in categories:
+        if raw is None:
+            continue
+        value = raw.value if hasattr(raw, "value") else str(raw)
+        if not value.strip():
+            continue
+        key = _category_key(value)
+        canonical = CATEGORY_LOOKUP.get(key, "Other")
+        if canonical not in seen:
+            normalized.append(canonical)
+            seen.add(canonical)
+    return normalized
+
+
+def _normalize_receipt(receipt: dict) -> dict:
+    receipt["category"] = normalize_categories(receipt.get("category"))
+    return receipt
 
 
 def _parse_date(date_str: str) -> datetime | None:
@@ -124,7 +205,7 @@ def _filter_receipts(
             return []
 
     vendor_filter = vendor.lower() if vendor else None
-    category_filter = category.lower() if category else None
+    category_filter = category if category else None
 
     for receipt in receipts:
         if vendor_filter and vendor_filter not in receipt.get("vendor", "").lower():
@@ -132,7 +213,7 @@ def _filter_receipts(
 
         if category_filter:
             categories = receipt.get("category") or []
-            if not any(category_filter in c.lower() for c in categories):
+            if category_filter not in categories:
                 continue
 
         amount = receipt.get("amount")
@@ -168,7 +249,7 @@ def _load_receipts_from_output(output_dir: str) -> list[dict]:
             with open(path, "r") as f:
                 data = json.load(f)
             if isinstance(data, list):
-                receipts.extend(data)
+                receipts.extend(_normalize_receipt(r) for r in data)
         except (OSError, json.JSONDecodeError):
             continue
     return receipts
@@ -195,7 +276,7 @@ def _merge_receipts_into_state(state: dict, receipts: list[dict]) -> None:
 
 
 def _load_stored_receipts(state: dict) -> list[dict]:
-    receipts = list(state.get("receipts", {}).values())
+    receipts = [_normalize_receipt(r) for r in state.get("receipts", {}).values()]
     receipts.extend(_load_receipts_from_output(OUTPUT_DIR))
     return dedupe_receipts(receipts)
 
@@ -247,7 +328,7 @@ def extract_receipt(filepath: str) -> dict:
         "amount": receipt.amount,
         "date": receipt.date,
         "vendor": receipt.vendor,
-        "category": receipt.category,
+        "category": normalize_categories(receipt.category),
         "paymentMethod": receipt.paymentMethod,
     }
 
@@ -322,6 +403,17 @@ def _build_output_paths(timestamp: str) -> tuple[str, str]:
     return json_path, tsv_path
 
 
+def _parse_category(value: str) -> str:
+    key = _category_key(value)
+    canonical = CATEGORY_LOOKUP.get(key)
+    if not canonical:
+        options = ", ".join(CANONICAL_CATEGORIES)
+        raise argparse.ArgumentTypeError(
+            f"Invalid category: {value}. Choose from: {options}"
+        )
+    return canonical
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(
         description="Receipt Ranger -- extract structured data from receipt images."
@@ -366,7 +458,9 @@ def main() -> None:
     )
     parser.add_argument(
         "--category",
-        help="Filter stored receipts by category substring.",
+        type=_parse_category,
+        choices=CANONICAL_CATEGORIES,
+        help="Filter stored receipts by category.",
     )
     args = parser.parse_args()
 

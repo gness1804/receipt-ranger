@@ -37,8 +37,33 @@ def get_checks(checks: typing.Dict[CheckName, Check]) -> typing.List[Check]:
 def all_succeeded(checks: typing.Dict[CheckName, Check]) -> bool:
     return all(check.status == "succeeded" for check in get_checks(checks))
 # #########################################################################
-# Generated enums (0)
+# Generated enums (1)
 # #########################################################################
+
+class ReceiptCategory(str, Enum):
+    FOOD_RESTAURANTS = "FOOD_RESTAURANTS"
+    GROCERIES = "GROCERIES"
+    TRANSPORTATION = "TRANSPORTATION"
+    TRAVEL = "TRAVEL"
+    LODGING = "LODGING"
+    UTILITIES = "UTILITIES"
+    HOUSING_RENT = "HOUSING_RENT"
+    HEALTH_MEDICAL = "HEALTH_MEDICAL"
+    INSURANCE = "INSURANCE"
+    ENTERTAINMENT_RECREATION = "ENTERTAINMENT_RECREATION"
+    CLOTHING_SHOES = "CLOTHING_SHOES"
+    ELECTRONICS_GADGETS = "ELECTRONICS_GADGETS"
+    HOME_GARDEN = "HOME_GARDEN"
+    OFFICE_SUPPLIES = "OFFICE_SUPPLIES"
+    EDUCATION = "EDUCATION"
+    GIFTS_DONATIONS = "GIFTS_DONATIONS"
+    SUBSCRIPTIONS_MEMBERSHIPS = "SUBSCRIPTIONS_MEMBERSHIPS"
+    FEES_SERVICES = "FEES_SERVICES"
+    TAXES = "TAXES"
+    CHILDCARE = "CHILDCARE"
+    PET_CARE = "PET_CARE"
+    PERSONAL_CARE = "PERSONAL_CARE"
+    OTHER = "OTHER"
 
 # #########################################################################
 # Generated classes (2)
@@ -49,7 +74,7 @@ class Receipt(BaseModel):
     amount: float = Field(description='The total amount of the receipt. Include all tips, taxes, etc. in the amount.')
     date: str = Field(description='The date of the receipt. Format should be MM/DD/YYYY.')
     vendor: str = Field(description='The vendor of the receipt.')
-    category: typing.List[str] = Field(description='The category of the receipt. Examples could include: Food/restaurants, Clothing, Entertainment, Housing, etc. If multiple categories are present, list them all. In the rare case when you can\'t determine a category, just present an empty list.')
+    category: typing.List[ReceiptCategory] = Field(description='The canonical categories for the receipt. Use only values from ReceiptCategory. If multiple categories are present, list them all. If you can\'t determine a category, present an empty list.')
     paymentMethod: typing.List[str] = Field(description='The method of payment used for the receipt. Examples could include: Cash, Card, Check, Gift Card, etc. If multiple payment methods are present, list them all. In the rare case when you can\'t determine a payment method, just present an empty list.')
 
 class Resume(BaseModel):
