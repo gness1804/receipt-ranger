@@ -194,6 +194,7 @@ output/
 .cursor/tmp/
 data/exclusion_criteria.txt
 data/receipts/
+service_account.json
 
 # Ruff stuff:
 .ruff_cache/

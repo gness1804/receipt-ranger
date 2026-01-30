@@ -485,6 +485,102 @@ def _parse_category(value: str) -> str:
     return canonical
 
 
+def upload_to_sheets(receipts: list[dict]):
+    """Uploads receipts to Google Sheets."""
+    try:
+        from sheets import (
+            get_gspread_client,
+            get_or_create_worksheet,
+            get_existing_receipts,
+            append_receipt,
+        )
+    except ImportError:
+        print(
+            "\n[Sheets] `gspread` library not found. "
+            "Please install it with: pip install gspread"
+        )
+        return
+
+    print("\n[Sheets] Starting upload to Google Sheets...")
+
+    try:
+        client = get_gspread_client()
+    except FileNotFoundError as e:
+        print(f"[Sheets] ERROR: {e}")
+        return
+    except Exception as e:
+        print(f"[Sheets] ERROR: Could not authenticate with Google Sheets: {e}")
+        return
+
+    worksheets = {}
+    new_receipts_count = 0
+
+    # Filter out receipts that are excluded from the table
+    receipts_to_upload, _ = _filter_excluded_receipts(receipts, print_warnings=False)
+
+    for receipt in receipts_to_upload:
+        date_str = receipt.get("date")
+        if not date_str:
+            continue
+
+        try:
+            # Use the existing _parse_date function
+            parsed_date = _parse_date(date_str)
+            if not parsed_date:
+                warning_message = (
+                    f"[Sheets] WARNING: Could not parse date '{date_str}', "
+                    "skipping receipt."
+                )
+                print(warning_message)
+                continue
+
+            # Format: "January 2026"
+            worksheet_title = parsed_date.strftime("%B %Y")
+        except (ValueError, TypeError):
+            warning_message = (
+                f"[Sheets] WARNING: Invalid date format for '{date_str}', "
+                "skipping receipt."
+            )
+            print(warning_message)
+            continue
+
+        if worksheet_title not in worksheets:
+            print(f"[Sheets] Accessing worksheet: '{worksheet_title}'...")
+            try:
+                worksheet = get_or_create_worksheet(client, worksheet_title)
+                existing_receipts = get_existing_receipts(worksheet)
+                worksheets[worksheet_title] = (worksheet, existing_receipts)
+            except Exception as e:
+                error_message = (
+                    f"[Sheets] ERROR: Could not access or create worksheet "
+                    f"'{worksheet_title}': {e}"
+                )
+                print(error_message)
+                continue
+
+        worksheet, existing_receipts = worksheets[worksheet_title]
+
+        # Create a unique key for the receipt to check for duplicates
+        receipt_key = (
+            str(receipt.get("date")),
+            str(receipt.get("amount")),
+            str(receipt.get("vendor")),
+        )
+
+        if receipt_key not in existing_receipts:
+            try:
+                append_receipt(worksheet, receipt)
+                existing_receipts.add(receipt_key)
+                new_receipts_count += 1
+                vendor = receipt.get("vendor")
+                date = receipt.get("date")
+                print(f"  [Sheets] Added new receipt: {vendor} on {date}")
+            except Exception as e:
+                print(f"[Sheets] ERROR: Could not append receipt to worksheet: {e}")
+
+    print(f"\n[Sheets] Upload complete. Added {new_receipts_count} new receipt(s).")
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(
         description="Receipt Ranger -- extract structured data from receipt images."
@@ -515,6 +611,11 @@ def main() -> None:
         help="Print a TSV table of all stored receipts.",
     )
     parser.add_argument(
+        "--upload-to-sheets",
+        action="store_true",
+        help="Uploads all processed receipts to Google Sheets.",
+    )
+    parser.add_argument(
         "--month",
         help="Filter stored receipts by month (YYYY-MM).",
     )
@@ -540,13 +641,14 @@ def main() -> None:
     )
     args = parser.parse_args()
 
-    if args.files and (args.table or args.tsv or args.tsv_all):
+    if args.files and (args.table or args.tsv or args.tsv_all or args.upload_to_sheets):
         parser.error(
-            "Cannot specify files to reprocess when using viewing-only options "
-            "like --table, --tsv, or --tsv-all."
+            "Cannot specify files to reprocess when using viewing-only or "
+            "upload options like --table, --tsv, --tsv-all, or "
+            "--upload-to-sheets."
         )
 
-    if args.table or args.tsv or args.tsv_all:
+    if args.table or args.tsv or args.tsv_all or args.upload_to_sheets:
         state = load_state()
         receipts = _load_stored_receipts(state)
         if not receipts:
@@ -557,7 +659,7 @@ def main() -> None:
         table_receipts, excluded = _filter_excluded_receipts(
             receipts, print_warnings=False
         )
-        if excluded:
+        if excluded and not args.upload_to_sheets:
             print(f"Note: {len(excluded)} receipt(s) excluded from table output.\n")
 
         if args.tsv or args.tsv_all:
@@ -576,6 +678,9 @@ def main() -> None:
 
         if args.table:
             print_table(dedupe_receipts(table_receipts))
+
+        if args.upload_to_sheets:
+            upload_to_sheets(receipts)
 
         sys.exit(0)
 
