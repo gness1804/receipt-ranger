@@ -234,14 +234,39 @@ class TestExtractReceipt:
         mock_receipt.vendor = "Test Store"
         mock_receipt.category = ["Food/restaurants"]
         mock_receipt.paymentMethod = ["Card"]
+        mock_receipt.excludeFromTable = False
+        mock_receipt.exclusionReason = ""
         mock_b.ExtractReceiptFromImage.return_value = mock_receipt
 
-        result = main.extract_receipt(str(img))
+        result = main.extract_receipt(str(img), "No exclusion criteria.")
 
         assert result["amount"] == 25.50
         assert result["vendor"] == "Test Store"
         assert result["category"] == ["Food & Restaurants"]
+        assert result["excludeFromTable"] is False
+        assert result["exclusionReason"] == ""
         mock_b.ExtractReceiptFromImage.assert_called_once()
+
+    @patch("main.b")
+    def test_extract_captures_exclusion_fields(self, mock_b, tmp_path):
+        img = tmp_path / "receipt.jpg"
+        img.write_bytes(b"fake image bytes")
+
+        mock_receipt = MagicMock()
+        mock_receipt.id = "r2"
+        mock_receipt.amount = 100.00
+        mock_receipt.date = "01/25/2026"
+        mock_receipt.vendor = "Excluded Vendor"
+        mock_receipt.category = []
+        mock_receipt.paymentMethod = ["Card"]
+        mock_receipt.excludeFromTable = True
+        mock_receipt.exclusionReason = "Vendor is on exclusion list"
+        mock_b.ExtractReceiptFromImage.return_value = mock_receipt
+
+        result = main.extract_receipt(str(img), "Exclude Excluded Vendor")
+
+        assert result["excludeFromTable"] is True
+        assert result["exclusionReason"] == "Vendor is on exclusion list"
 
 
 class TestDedupeReceipts:
@@ -295,3 +320,130 @@ class TestNormalizeCategories:
 class TestParseCategory:
     def test_parse_category_accepts_alias(self):
         assert main._parse_category("food and restaurants") == "Food & Restaurants"
+
+
+class TestLoadExclusionCriteria:
+    def test_returns_default_when_file_missing(self, tmp_path, monkeypatch):
+        monkeypatch.setattr(
+            main, "EXCLUSION_CRITERIA_FILE", str(tmp_path / "nonexistent.txt")
+        )
+        result = main.load_exclusion_criteria()
+        assert result == "No exclusion criteria configured."
+
+    def test_returns_default_when_file_empty(self, tmp_path, monkeypatch):
+        criteria_file = tmp_path / "exclusion_criteria.txt"
+        criteria_file.write_text("")
+        monkeypatch.setattr(main, "EXCLUSION_CRITERIA_FILE", str(criteria_file))
+        result = main.load_exclusion_criteria()
+        assert result == "No exclusion criteria configured."
+
+    def test_returns_default_when_file_only_whitespace(self, tmp_path, monkeypatch):
+        criteria_file = tmp_path / "exclusion_criteria.txt"
+        criteria_file.write_text("   \n\n  ")
+        monkeypatch.setattr(main, "EXCLUSION_CRITERIA_FILE", str(criteria_file))
+        result = main.load_exclusion_criteria()
+        assert result == "No exclusion criteria configured."
+
+    def test_returns_content_when_file_exists(self, tmp_path, monkeypatch):
+        criteria_file = tmp_path / "exclusion_criteria.txt"
+        criteria_file.write_text("Exclude receipts from Test Vendor")
+        monkeypatch.setattr(main, "EXCLUSION_CRITERIA_FILE", str(criteria_file))
+        result = main.load_exclusion_criteria()
+        assert result == "Exclude receipts from Test Vendor"
+
+
+class TestFilterExcludedReceipts:
+    def test_separates_excluded_receipts(self):
+        receipts = [
+            {"vendor": "Store A", "amount": 10.0, "excludeFromTable": False},
+            {
+                "vendor": "Store B",
+                "amount": 20.0,
+                "excludeFromTable": True,
+                "exclusionReason": "Test reason",
+            },
+            {"vendor": "Store C", "amount": 30.0, "excludeFromTable": False},
+        ]
+        included, excluded = main._filter_excluded_receipts(
+            receipts, print_warnings=False
+        )
+        assert len(included) == 2
+        assert len(excluded) == 1
+        assert excluded[0]["vendor"] == "Store B"
+
+    def test_handles_missing_excludeFromTable_field(self):
+        receipts = [
+            {"vendor": "Store A", "amount": 10.0},
+            {
+                "vendor": "Store B",
+                "amount": 20.0,
+                "excludeFromTable": True,
+                "exclusionReason": "Excluded",
+            },
+        ]
+        included, excluded = main._filter_excluded_receipts(
+            receipts, print_warnings=False
+        )
+        assert len(included) == 1
+        assert len(excluded) == 1
+        assert included[0]["vendor"] == "Store A"
+
+    def test_prints_warnings_when_enabled(self, capsys):
+        receipts = [
+            {
+                "vendor": "Excluded Store",
+                "amount": 50.0,
+                "excludeFromTable": True,
+                "exclusionReason": "Card number match",
+            },
+        ]
+        main._filter_excluded_receipts(receipts, print_warnings=True)
+        captured = capsys.readouterr()
+        assert "WARNING: Receipt excluded from table" in captured.out
+        assert "Excluded Store" in captured.out
+        assert "Card number match" in captured.out
+
+    def test_no_warnings_when_disabled(self, capsys):
+        receipts = [
+            {
+                "vendor": "Excluded Store",
+                "amount": 50.0,
+                "excludeFromTable": True,
+                "exclusionReason": "Card number match",
+            },
+        ]
+        main._filter_excluded_receipts(receipts, print_warnings=False)
+        captured = capsys.readouterr()
+        assert "WARNING" not in captured.out
+
+    def test_all_receipts_included_when_none_excluded(self):
+        receipts = [
+            {"vendor": "Store A", "amount": 10.0, "excludeFromTable": False},
+            {"vendor": "Store B", "amount": 20.0, "excludeFromTable": False},
+        ]
+        included, excluded = main._filter_excluded_receipts(
+            receipts, print_warnings=False
+        )
+        assert len(included) == 2
+        assert len(excluded) == 0
+
+    def test_all_receipts_excluded(self):
+        receipts = [
+            {
+                "vendor": "Store A",
+                "amount": 10.0,
+                "excludeFromTable": True,
+                "exclusionReason": "Reason 1",
+            },
+            {
+                "vendor": "Store B",
+                "amount": 20.0,
+                "excludeFromTable": True,
+                "exclusionReason": "Reason 2",
+            },
+        ]
+        included, excluded = main._filter_excluded_receipts(
+            receipts, print_warnings=False
+        )
+        assert len(included) == 0
+        assert len(excluded) == 2

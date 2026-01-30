@@ -192,6 +192,7 @@ cython_debug/
 processed_receipts.json
 output/
 .cursor/tmp/
+data/exclusion_criteria.txt
 
 # Ruff stuff:
 .ruff_cache/

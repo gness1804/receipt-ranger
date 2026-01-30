@@ -18,6 +18,7 @@ OUTPUT_DIR = "output"
 STATE_FILE = "processed_receipts.json"
 OUTPUT_JSON = os.path.join(OUTPUT_DIR, "receipts.json")
 OUTPUT_TSV = os.path.join(OUTPUT_DIR, "receipts.tsv")
+EXCLUSION_CRITERIA_FILE = os.path.join("data", "exclusion_criteria.txt")
 
 # Supported image extensions
 VALID_EXTENSIONS = {".jpg", ".jpeg", ".png", ".gif", ".bmp", ".webp", ".tiff"}
@@ -118,6 +119,24 @@ def save_state(state: dict) -> None:
     state = _normalize_state(state)
     with open(STATE_FILE, "w") as f:
         json.dump(state, f, indent=2)
+
+
+def load_exclusion_criteria() -> str:
+    """Load exclusion criteria from file.
+
+    Returns the file contents as a string, or a default message if the file
+    doesn't exist or is empty.
+    """
+    if not os.path.exists(EXCLUSION_CRITERIA_FILE):
+        return "No exclusion criteria configured."
+    try:
+        with open(EXCLUSION_CRITERIA_FILE, "r") as f:
+            content = f.read().strip()
+        if not content:
+            return "No exclusion criteria configured."
+        return content
+    except OSError:
+        return "No exclusion criteria configured."
 
 
 def _normalize_state(state: dict) -> dict:
@@ -255,6 +274,36 @@ def _load_receipts_from_output(output_dir: str) -> list[dict]:
     return receipts
 
 
+def _filter_excluded_receipts(
+    receipts: list[dict], print_warnings: bool = True
+) -> tuple[list[dict], list[dict]]:
+    """Separate receipts into included and excluded lists.
+
+    Args:
+        receipts: List of receipt dicts to filter
+        print_warnings: If True, print warning messages for excluded receipts
+
+    Returns:
+        Tuple of (included_receipts, excluded_receipts)
+    """
+    included = []
+    excluded = []
+    for receipt in receipts:
+        if receipt.get("excludeFromTable", False):
+            excluded.append(receipt)
+            if print_warnings:
+                reason = receipt.get("exclusionReason", "No reason provided")
+                vendor = receipt.get("vendor", "Unknown")
+                amount = receipt.get("amount", 0)
+                print(
+                    f"  WARNING: Receipt excluded from table - "
+                    f"Vendor: {vendor}, Amount: ${amount:.2f}, Reason: {reason}"
+                )
+        else:
+            included.append(receipt)
+    return included, excluded
+
+
 def _build_tsv_lines(results: list[dict]) -> list[str]:
     header = "Amount\tDate\t\tVendor\tCategory"
     lines = [header]
@@ -312,7 +361,7 @@ def get_receipts_to_process(allow_duplicates: bool) -> list[tuple[str, str, str]
     return to_process
 
 
-def extract_receipt(filepath: str) -> dict:
+def extract_receipt(filepath: str, exclusion_criteria: str) -> dict:
     """Run BAML extraction on a receipt image and return the result as a dict."""
     _, ext = os.path.splitext(filepath)
     mime_type = MIME_TYPES[ext.lower()]
@@ -321,7 +370,7 @@ def extract_receipt(filepath: str) -> dict:
         image_data = base64.standard_b64encode(f.read()).decode("utf-8")
 
     image = baml_py.Image.from_base64(mime_type, image_data)
-    receipt = b.ExtractReceiptFromImage(image)
+    receipt = b.ExtractReceiptFromImage(image, exclusion_criteria)
 
     return {
         "id": receipt.id,
@@ -330,6 +379,8 @@ def extract_receipt(filepath: str) -> dict:
         "vendor": receipt.vendor,
         "category": normalize_categories(receipt.category),
         "paymentMethod": receipt.paymentMethod,
+        "excludeFromTable": receipt.excludeFromTable,
+        "exclusionReason": receipt.exclusionReason,
     }
 
 
@@ -471,12 +522,19 @@ def main() -> None:
             print("No stored receipts found.")
             sys.exit(0)
 
+        # Filter out excluded receipts from table display
+        table_receipts, excluded = _filter_excluded_receipts(
+            receipts, print_warnings=False
+        )
+        if excluded:
+            print(f"Note: {len(excluded)} receipt(s) excluded from table output.\n")
+
         if args.tsv or args.tsv_all:
             if args.tsv_all:
-                filtered = receipts
+                filtered = table_receipts
             else:
                 filtered = _filter_receipts(
-                    receipts,
+                    table_receipts,
                     month=args.month,
                     vendor=args.vendor,
                     min_amount=args.min_amount,
@@ -486,7 +544,7 @@ def main() -> None:
             _print_tsv(dedupe_receipts(filtered))
 
         if args.table:
-            print_table(dedupe_receipts(receipts))
+            print_table(dedupe_receipts(table_receipts))
 
         sys.exit(0)
 
@@ -498,13 +556,16 @@ def main() -> None:
 
     print(f"Processing {len(to_process)} receipt(s)...\n")
 
+    # Load exclusion criteria for LLM evaluation
+    exclusion_criteria = load_exclusion_criteria()
+
     results = []
     state = load_state()
 
     for filename, filepath, file_h in to_process:
         print(f"  Extracting: {filename}...")
         try:
-            receipt_data = extract_receipt(filepath)
+            receipt_data = extract_receipt(filepath, exclusion_criteria)
             receipt_data["source_file"] = filename
             receipt_data["source_hash"] = file_h
             results.append(receipt_data)
@@ -519,16 +580,33 @@ def main() -> None:
     deduped_results = dedupe_receipts(results)
     timestamp = _timestamp()
     output_json, output_tsv = _build_output_paths(timestamp)
+
+    # Write all receipts (including excluded) to JSON for record-keeping
     write_json(deduped_results, output_json)
-    write_tsv(deduped_results, output_tsv)
+
+    # Filter excluded receipts from table output (with warnings)
+    print()  # Blank line before warnings
+    table_receipts, excluded_receipts = _filter_excluded_receipts(
+        deduped_results, print_warnings=True
+    )
+
+    # Write only non-excluded receipts to TSV
+    write_tsv(table_receipts, output_tsv)
+
+    # Merge all receipts (including excluded) into state for deduplication
     _merge_receipts_into_state(state, deduped_results)
     save_state(state)
 
-    print(
-        f"\nProcessed {len(deduped_results)} receipt(s). "
-        f"Output saved to {OUTPUT_DIR}/\n"
-    )
-    print_table(deduped_results)
+    excluded_count = len(excluded_receipts)
+    table_count = len(table_receipts)
+    total_count = len(deduped_results)
+
+    print(f"\nProcessed {total_count} receipt(s). " f"Output saved to {OUTPUT_DIR}/")
+    if excluded_count > 0:
+        print(f"  - {table_count} receipt(s) included in table")
+        print(f"  - {excluded_count} receipt(s) excluded from table")
+    print()
+    print_table(table_receipts)
 
 
 if __name__ == "__main__":
