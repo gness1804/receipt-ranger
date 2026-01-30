@@ -31,8 +31,10 @@ class Receipt(BaseModel):
     amount: typing.Optional[float] = Field(default=None, description='The total amount of the receipt. Include all tips, taxes, etc. in the amount.')
     date: typing.Optional[str] = Field(default=None, description='The date of the receipt. Format should be MM/DD/YYYY.')
     vendor: typing.Optional[str] = Field(default=None, description='The vendor of the receipt.')
-    category: typing.List[str] = Field(description='The category of the receipt. Examples could include: Food/restaurants, Clothing, Entertainment, Housing, etc. If multiple categories are present, list them all. In the rare case when you can\'t determine a category, just present an empty list.')
+    category: typing.List[types.ReceiptCategory] = Field(description='The canonical categories for the receipt. Use only values from ReceiptCategory. If multiple categories are present, list them all. If you can\'t determine a category, present an empty list.')
     paymentMethod: typing.List[str] = Field(description='The method of payment used for the receipt. Examples could include: Cash, Card, Check, Gift Card, etc. If multiple payment methods are present, list them all. In the rare case when you can\'t determine a payment method, just present an empty list.')
+    excludeFromTable: typing.Optional[bool] = Field(default=None, description='Whether to exclude this receipt from the output table. Default is false. Should only be true if the receipt meets the exclusion conditions described in input documents.')
+    exclusionReason: typing.Optional[str] = Field(default=None, description='If excludeFromTable is true, provide a brief explanation of why this receipt was excluded. If excludeFromTable is false, this should be an empty string.')
 
 class Resume(BaseModel):
     name: typing.Optional[str] = None

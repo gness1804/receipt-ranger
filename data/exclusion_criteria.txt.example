@@ -1,0 +1,20 @@
+# Receipt Exclusion Criteria
+# --------------------------
+# This file defines conditions under which receipts should be excluded from
+# the output table (but still included in JSON output and deduplication).
+#
+# Copy this file to exclusion_criteria.txt and customize with your own rules.
+# The exclusion_criteria.txt file is gitignored to protect sensitive data.
+#
+# Write rules in plain English. The LLM will interpret these when processing
+# receipts. Be specific about what should trigger exclusion.
+#
+# Examples:
+# - Exclude receipts from vendor "Internal Expense" as these are reimbursements
+# - Exclude any receipt where the payment method includes a card ending in 1234
+# - Exclude receipts with amount of exactly $0.00
+# - Exclude receipts from category "Gifts & Donations" that exceed $500
+#
+# Add your exclusion rules below this line:
+# -----------------------------------------
+

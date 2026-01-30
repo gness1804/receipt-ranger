@@ -23,4 +23,6 @@ type_map = {
     "stream_types.Resume": stream_types.Resume,
 
 
+    "types.ReceiptCategory": types.ReceiptCategory,
+
 }
