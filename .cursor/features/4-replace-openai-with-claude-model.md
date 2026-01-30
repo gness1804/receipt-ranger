@@ -1,5 +1,5 @@
 ---
-github_issue:
+github_issue: 8
 ---
 # Replace OpenAI With Claude Model
 
