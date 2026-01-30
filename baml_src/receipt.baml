@@ -36,7 +36,7 @@ class Receipt {
 }
 
 function ExtractReceiptFromImage(image: image, exclusionCriteria: string) -> Receipt {
-    client "CustomGPT5Mini" // TODO: Change to CustomSonnet4 for production
+    client "CustomSonnet4"
     prompt #"
         {{ _.role("user") }}
         Extract the receipt from the following image. Format the date as MM/DD/YYYY. If the amount is not a whole number, format it as a decimal. For instance, $10.50 should be formatted as 10.50. If the amount is not present, set the amount to 0.00. If the vendor is not present, set the vendor to "Unknown". Use only ReceiptCategory values for category. If the category is not present, set the category to an empty list. If the payment method is not present, set the payment method to an empty list.
