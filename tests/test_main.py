@@ -4,7 +4,6 @@ import json
 import os
 from unittest.mock import MagicMock, patch
 
-
 import main
 
 
@@ -72,12 +71,12 @@ class TestGetReceiptsToProcess:
 
         state_file = tmp_path / "state.json"
         file_h = main.file_hash(str(img))
-        state_file.write_text(json.dumps({"test.jpg": file_h}))
+        state_file.write_text(json.dumps({"files": {"test.jpg": file_h}}))
 
         monkeypatch.setattr(main, "RECEIPTS_DIR", str(receipts_dir))
         monkeypatch.setattr(main, "STATE_FILE", str(state_file))
 
-        result = main.get_receipts_to_process(allow_duplicates=False)
+        result = main.get_receipts_to_process(allow_duplicates=False, files=None)
         assert result == []
 
     def test_processes_new_files(self, tmp_path, monkeypatch):
@@ -89,7 +88,7 @@ class TestGetReceiptsToProcess:
         monkeypatch.setattr(main, "RECEIPTS_DIR", str(receipts_dir))
         monkeypatch.setattr(main, "STATE_FILE", str(tmp_path / "empty.json"))
 
-        result = main.get_receipts_to_process(allow_duplicates=False)
+        result = main.get_receipts_to_process(allow_duplicates=False, files=None)
         assert len(result) == 1
         assert result[0][0] == "new.png"
 
@@ -101,12 +100,12 @@ class TestGetReceiptsToProcess:
 
         state_file = tmp_path / "state.json"
         file_h = main.file_hash(str(img))
-        state_file.write_text(json.dumps({"test.jpg": file_h}))
+        state_file.write_text(json.dumps({"files": {"test.jpg": file_h}}))
 
         monkeypatch.setattr(main, "RECEIPTS_DIR", str(receipts_dir))
         monkeypatch.setattr(main, "STATE_FILE", str(state_file))
 
-        result = main.get_receipts_to_process(allow_duplicates=True)
+        result = main.get_receipts_to_process(allow_duplicates=True, files=None)
         assert len(result) == 1
 
     def test_skips_non_image_files(self, tmp_path, monkeypatch):
@@ -119,7 +118,7 @@ class TestGetReceiptsToProcess:
         monkeypatch.setattr(main, "RECEIPTS_DIR", str(receipts_dir))
         monkeypatch.setattr(main, "STATE_FILE", str(tmp_path / "empty.json"))
 
-        result = main.get_receipts_to_process(allow_duplicates=False)
+        result = main.get_receipts_to_process(allow_duplicates=False, files=None)
         assert len(result) == 1
         assert result[0][0] == "valid.jpg"
 
@@ -130,18 +129,65 @@ class TestGetReceiptsToProcess:
         img.write_bytes(b"original data")
 
         state_file = tmp_path / "state.json"
-        state_file.write_text(json.dumps({"test.jpg": "old_hash_value"}))
+        state_file.write_text(json.dumps({"files": {"test.jpg": "old_hash_value"}}))
 
         monkeypatch.setattr(main, "RECEIPTS_DIR", str(receipts_dir))
         monkeypatch.setattr(main, "STATE_FILE", str(state_file))
 
-        result = main.get_receipts_to_process(allow_duplicates=False)
+        result = main.get_receipts_to_process(allow_duplicates=False, files=None)
         assert len(result) == 1
 
     def test_missing_directory(self, tmp_path, monkeypatch):
         monkeypatch.setattr(main, "RECEIPTS_DIR", str(tmp_path / "nonexistent"))
-        result = main.get_receipts_to_process(allow_duplicates=False)
+        result = main.get_receipts_to_process(allow_duplicates=False, files=None)
         assert result == []
+
+    def test_processes_specific_files(self, tmp_path):
+        img1 = tmp_path / "img1.jpg"
+        img1.write_bytes(b"img1")
+        img2 = tmp_path / "img2.png"
+        img2.write_bytes(b"img2")
+        # This one should be ignored by the logic
+        receipts_dir_img = tmp_path / "receipts" / "img3.jpg"
+        receipts_dir_img.parent.mkdir()
+        receipts_dir_img.write_bytes(b"img3")
+
+        file_paths = [str(img1), str(img2)]
+        result = main.get_receipts_to_process(allow_duplicates=False, files=file_paths)
+
+        assert len(result) == 2
+        filenames = {r[0] for r in result}
+        assert "img1.jpg" in filenames
+        assert "img2.png" in filenames
+        assert "img3.jpg" not in filenames
+
+    def test_skips_non_existent_files(self, tmp_path, capsys):
+        img1 = tmp_path / "img1.jpg"
+        img1.write_bytes(b"img1")
+
+        file_paths = [str(img1), "non_existent_file.jpg"]
+        result = main.get_receipts_to_process(allow_duplicates=False, files=file_paths)
+
+        assert len(result) == 1
+        assert result[0][0] == "img1.jpg"
+        captured = capsys.readouterr()
+        assert "WARNING: File not found" in captured.out
+        assert "non_existent_file.jpg" in captured.out
+
+    def test_skips_invalid_image_files_from_list(self, tmp_path, capsys):
+        img1 = tmp_path / "img1.jpg"
+        img1.write_bytes(b"img1")
+        not_img = tmp_path / "file.txt"
+        not_img.write_bytes(b"not an image")
+
+        file_paths = [str(img1), str(not_img)]
+        result = main.get_receipts_to_process(allow_duplicates=False, files=file_paths)
+
+        assert len(result) == 1
+        assert result[0][0] == "img1.jpg"
+        captured = capsys.readouterr()
+        assert "WARNING: File is not a valid image" in captured.out
+        assert "file.txt" in captured.out
 
 
 class TestWriteTsv:

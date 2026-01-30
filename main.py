@@ -330,11 +330,31 @@ def _load_stored_receipts(state: dict) -> list[dict]:
     return dedupe_receipts(receipts)
 
 
-def get_receipts_to_process(allow_duplicates: bool) -> list[tuple[str, str, str]]:
+def get_receipts_to_process(
+    allow_duplicates: bool, files: list[str] | None = None
+) -> list[tuple[str, str, str]]:
     """Return list of (filename, filepath, file_hash) tuples for receipts to process.
 
-    Skips already-processed files unless allow_duplicates is True.
+    If `files` is provided, it will process that list of files.
+    Otherwise, it scans RECEIPTS_DIR, skipping already-processed files
+    unless allow_duplicates is True.
     """
+    if files:
+        to_process = []
+        print(f"Attempting to reprocess {len(files)} specified receipt(s)...")
+        for filepath in files:
+            if not os.path.exists(filepath):
+                print(f"  WARNING: File not found, skipping: {filepath}")
+                continue
+            if not is_valid_image(filepath):
+                print(f"  WARNING: File is not a valid image, skipping: {filepath}")
+                continue
+
+            filename = os.path.basename(filepath)
+            current_hash = file_hash(filepath)
+            to_process.append((filename, filepath, current_hash))
+        return to_process
+
     if not os.path.isdir(RECEIPTS_DIR):
         print(f"Receipts directory not found: {RECEIPTS_DIR}")
         return []
@@ -470,6 +490,11 @@ def main() -> None:
         description="Receipt Ranger -- extract structured data from receipt images."
     )
     parser.add_argument(
+        "--files",
+        nargs="*",
+        help="One or more paths to specific receipt files to reprocess.",
+    )
+    parser.add_argument(
         "--duplicates",
         action="store_true",
         help="Reprocess all receipts, including previously processed ones.",
@@ -515,6 +540,12 @@ def main() -> None:
     )
     args = parser.parse_args()
 
+    if args.files and (args.table or args.tsv or args.tsv_all):
+        parser.error(
+            "Cannot specify files to reprocess when using viewing-only options "
+            "like --table, --tsv, or --tsv-all."
+        )
+
     if args.table or args.tsv or args.tsv_all:
         state = load_state()
         receipts = _load_stored_receipts(state)
@@ -548,10 +579,13 @@ def main() -> None:
 
         sys.exit(0)
 
-    to_process = get_receipts_to_process(allow_duplicates=args.duplicates)
+    to_process = get_receipts_to_process(
+        allow_duplicates=args.duplicates, files=args.files
+    )
 
     if not to_process:
-        print("No new receipts to process.")
+        if not args.files:
+            print("No new receipts to process.")
         sys.exit(0)
 
     print(f"Processing {len(to_process)} receipt(s)...\n")
@@ -601,7 +635,7 @@ def main() -> None:
     table_count = len(table_receipts)
     total_count = len(deduped_results)
 
-    print(f"\nProcessed {total_count} receipt(s). " f"Output saved to {OUTPUT_DIR}/")
+    print(f"\nProcessed {total_count} receipt(s). Output saved to {OUTPUT_DIR}/")
     if excluded_count > 0:
         print(f"  - {table_count} receipt(s) included in table")
         print(f"  - {excluded_count} receipt(s) excluded from table")
