@@ -381,6 +381,21 @@ def get_receipts_to_process(
     return to_process
 
 
+def _is_future_date(date_str: str) -> bool:
+    """Check if a date string represents a date in the future."""
+    if not date_str:
+        return False
+    parsed = _parse_date(date_str)
+    if not parsed:
+        return False
+    return parsed.date() > datetime.now().date()
+
+
+def _get_current_date_str() -> str:
+    """Return the current date in MM/DD/YYYY format."""
+    return datetime.now().strftime("%m/%d/%Y")
+
+
 def extract_receipt(filepath: str, exclusion_criteria: str) -> dict:
     """Run BAML extraction on a receipt image and return the result as a dict."""
     _, ext = os.path.splitext(filepath)
@@ -390,12 +405,22 @@ def extract_receipt(filepath: str, exclusion_criteria: str) -> dict:
         image_data = base64.standard_b64encode(f.read()).decode("utf-8")
 
     image = baml_py.Image.from_base64(mime_type, image_data)
-    receipt = b.ExtractReceiptFromImage(image, exclusion_criteria)
+    current_date = _get_current_date_str()
+    receipt = b.ExtractReceiptFromImage(image, exclusion_criteria, current_date)
+
+    # Validate the date - replace future dates with empty string
+    extracted_date = receipt.date
+    if _is_future_date(extracted_date):
+        print(
+            f"    WARNING: Future date detected ({extracted_date}), "
+            "replacing with empty string"
+        )
+        extracted_date = ""
 
     return {
         "id": receipt.id,
         "amount": receipt.amount,
-        "date": receipt.date,
+        "date": extracted_date,
         "vendor": receipt.vendor,
         "category": normalize_categories(receipt.category),
         "paymentMethod": receipt.paymentMethod,
