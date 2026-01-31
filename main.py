@@ -485,6 +485,48 @@ def _parse_category(value: str) -> str:
     return canonical
 
 
+def fix_google_sheets():
+    """Fix misaligned data in existing Google Sheets worksheets."""
+    try:
+        from sheets import get_gspread_client, fix_all_worksheets
+    except ImportError:
+        print(
+            "\n[Sheets] `gspread` library not found. "
+            "Please install it with: pip install gspread"
+        )
+        return
+
+    print("[Sheets] Checking for misaligned worksheets...")
+
+    try:
+        client = get_gspread_client()
+    except FileNotFoundError as e:
+        print(f"[Sheets] ERROR: {e}")
+        return
+    except Exception as e:
+        print(f"[Sheets] ERROR: Could not authenticate with Google Sheets: {e}")
+        return
+
+    try:
+        results = fix_all_worksheets(client)
+    except Exception as e:
+        print(f"[Sheets] ERROR: Could not fix worksheets: {e}")
+        return
+
+    fixed_count = 0
+    for worksheet_name, count in results.items():
+        if count > 0:
+            print(f"  [Sheets] Fixed '{worksheet_name}': realigned {count} receipt(s)")
+            fixed_count += count
+        else:
+            print(f"  [Sheets] '{worksheet_name}': already properly aligned")
+
+    if fixed_count > 0:
+        print(f"\n[Sheets] Done. Fixed {fixed_count} total receipt(s).")
+    else:
+        print("\n[Sheets] All worksheets are already properly aligned.")
+
+
 def upload_to_sheets(receipts: list[dict]):
     """Uploads receipts to Google Sheets."""
     try:
@@ -616,6 +658,11 @@ def main() -> None:
         help="Uploads all processed receipts to Google Sheets.",
     )
     parser.add_argument(
+        "--fix-sheets",
+        action="store_true",
+        help="Fix misaligned data in existing Google Sheets worksheets.",
+    )
+    parser.add_argument(
         "--month",
         help="Filter stored receipts by month (YYYY-MM).",
     )
@@ -641,12 +688,22 @@ def main() -> None:
     )
     args = parser.parse_args()
 
-    if args.files and (args.table or args.tsv or args.tsv_all or args.upload_to_sheets):
+    if args.files and (
+        args.table
+        or args.tsv
+        or args.tsv_all
+        or args.upload_to_sheets
+        or args.fix_sheets
+    ):
         parser.error(
             "Cannot specify files to reprocess when using viewing-only or "
-            "upload options like --table, --tsv, --tsv-all, or "
-            "--upload-to-sheets."
+            "upload options like --table, --tsv, --tsv-all, --upload-to-sheets, "
+            "or --fix-sheets."
         )
+
+    if args.fix_sheets:
+        fix_google_sheets()
+        sys.exit(0)
 
     if args.table or args.tsv or args.tsv_all or args.upload_to_sheets:
         state = load_state()
