@@ -39,19 +39,28 @@ function ExtractReceiptFromImage(image: image, exclusionCriteria: string, curren
     client "CustomSonnet4"
     prompt #"
         {{ _.role("user") }}
-        Extract the receipt from the following image. If the amount is not a whole number, format it as a decimal. For instance, $10.50 should be formatted as 10.50. Use only ReceiptCategory values for category.
+        Extract the receipt from the following image.
 
-        TODAY'S DATE: {{ currentDate }}
-        Do not set the date field to anything after {{ currentDate }}. If you are unable to determine the date, just put an empty string. Don't try to guess.
-
-        NOTE: Do not exclude a receipt from the table because of its date. Only exclude a receipt from the table due to the criteria described below.
-
-        EXCLUSION CRITERIA:
-        After extracting the receipt data, evaluate whether this receipt should be excluded from the output table based on the following criteria. If any of these conditions are met, set excludeFromTable to true and provide a brief exclusionReason. If no exclusion criteria are provided or none match, set excludeFromTable to false and exclusionReason to an empty string. Do not exclude a receipt from the table for any reason other than those explicitly stated below.
-
-        {{ exclusionCriteria }}
+        EXTRACTION RULES:
+        - If the amount is not a whole number, format it as a decimal (e.g., $10.50 → 10.50)
+        - Use only ReceiptCategory values for category
+        - Today's date is {{ currentDate }}. If the receipt date appears to be after {{ currentDate }}, leave the date field as an empty string
+        - If you cannot determine the date, leave it as an empty string. Do not guess.
 
         {{ image }}
+
+        EXCLUSION CRITERIA (READ CAREFULLY):
+        The excludeFromTable field should ONLY be set to true if the receipt matches one of the criteria listed below. If no criteria are listed, or if the receipt does not match any listed criteria, you MUST set excludeFromTable to false.
+
+        IMPORTANT: The following are NOT valid reasons to exclude a receipt:
+        - The receipt's date (past, present, or future dates are all acceptable)
+        - Missing or unclear information on the receipt
+        - The receipt's amount, vendor, or category
+
+        The ONLY valid exclusion criteria are:
+        {{ exclusionCriteria }}
+
+        If the above criteria section is empty or says "No exclusion criteria", then set excludeFromTable to false and exclusionReason to an empty string.
 
         {{ ctx.output_format }}
     "#

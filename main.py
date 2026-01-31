@@ -256,24 +256,6 @@ def _filter_receipts(
     return results
 
 
-def _load_receipts_from_output(output_dir: str) -> list[dict]:
-    if not os.path.isdir(output_dir):
-        return []
-    receipts = []
-    for filename in sorted(os.listdir(output_dir)):
-        if not (filename.startswith("receipts") and filename.endswith(".json")):
-            continue
-        path = os.path.join(output_dir, filename)
-        try:
-            with open(path, "r") as f:
-                data = json.load(f)
-            if isinstance(data, list):
-                receipts.extend(_normalize_receipt(r) for r in data)
-        except (OSError, json.JSONDecodeError):
-            continue
-    return receipts
-
-
 def _filter_excluded_receipts(
     receipts: list[dict], print_warnings: bool = True
 ) -> tuple[list[dict], list[dict]]:
@@ -325,8 +307,8 @@ def _merge_receipts_into_state(state: dict, receipts: list[dict]) -> None:
 
 
 def _load_stored_receipts(state: dict) -> list[dict]:
+    """Load receipts from processed_receipts.json (the sole source of truth)."""
     receipts = [_normalize_receipt(r) for r in state.get("receipts", {}).values()]
-    receipts.extend(_load_receipts_from_output(OUTPUT_DIR))
     return dedupe_receipts(receipts)
 
 
