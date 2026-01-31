@@ -25,3 +25,5 @@ The user has provided feedback on two points:
 
 ## Resuming the Session
 When you are ready to continue, please provide the preferred column order for the Google Sheet. I can then modify the `sheets.py` and `main.py` files to match the desired format. We can also discuss implementing the feature to update existing rows in the Google Sheet.
+
+<!-- DONE -->
