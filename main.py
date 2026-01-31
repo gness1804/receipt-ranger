@@ -256,24 +256,6 @@ def _filter_receipts(
     return results
 
 
-def _load_receipts_from_output(output_dir: str) -> list[dict]:
-    if not os.path.isdir(output_dir):
-        return []
-    receipts = []
-    for filename in sorted(os.listdir(output_dir)):
-        if not (filename.startswith("receipts") and filename.endswith(".json")):
-            continue
-        path = os.path.join(output_dir, filename)
-        try:
-            with open(path, "r") as f:
-                data = json.load(f)
-            if isinstance(data, list):
-                receipts.extend(_normalize_receipt(r) for r in data)
-        except (OSError, json.JSONDecodeError):
-            continue
-    return receipts
-
-
 def _filter_excluded_receipts(
     receipts: list[dict], print_warnings: bool = True
 ) -> tuple[list[dict], list[dict]]:
@@ -325,8 +307,8 @@ def _merge_receipts_into_state(state: dict, receipts: list[dict]) -> None:
 
 
 def _load_stored_receipts(state: dict) -> list[dict]:
+    """Load receipts from processed_receipts.json (the sole source of truth)."""
     receipts = [_normalize_receipt(r) for r in state.get("receipts", {}).values()]
-    receipts.extend(_load_receipts_from_output(OUTPUT_DIR))
     return dedupe_receipts(receipts)
 
 
@@ -381,6 +363,21 @@ def get_receipts_to_process(
     return to_process
 
 
+def _is_future_date(date_str: str) -> bool:
+    """Check if a date string represents a date in the future."""
+    if not date_str:
+        return False
+    parsed = _parse_date(date_str)
+    if not parsed:
+        return False
+    return parsed.date() > datetime.now().date()
+
+
+def _get_current_date_str() -> str:
+    """Return the current date in MM/DD/YYYY format."""
+    return datetime.now().strftime("%m/%d/%Y")
+
+
 def extract_receipt(filepath: str, exclusion_criteria: str) -> dict:
     """Run BAML extraction on a receipt image and return the result as a dict."""
     _, ext = os.path.splitext(filepath)
@@ -390,12 +387,22 @@ def extract_receipt(filepath: str, exclusion_criteria: str) -> dict:
         image_data = base64.standard_b64encode(f.read()).decode("utf-8")
 
     image = baml_py.Image.from_base64(mime_type, image_data)
-    receipt = b.ExtractReceiptFromImage(image, exclusion_criteria)
+    current_date = _get_current_date_str()
+    receipt = b.ExtractReceiptFromImage(image, exclusion_criteria, current_date)
+
+    # Validate the date - replace future dates with empty string
+    extracted_date = receipt.date
+    if _is_future_date(extracted_date):
+        print(
+            f"    WARNING: Future date detected ({extracted_date}), "
+            "replacing with empty string"
+        )
+        extracted_date = ""
 
     return {
         "id": receipt.id,
         "amount": receipt.amount,
-        "date": receipt.date,
+        "date": extracted_date,
         "vendor": receipt.vendor,
         "category": normalize_categories(receipt.category),
         "paymentMethod": receipt.paymentMethod,
@@ -485,6 +492,144 @@ def _parse_category(value: str) -> str:
     return canonical
 
 
+def fix_google_sheets():
+    """Fix misaligned data in existing Google Sheets worksheets."""
+    try:
+        from sheets import get_gspread_client, fix_all_worksheets
+    except ImportError:
+        print(
+            "\n[Sheets] `gspread` library not found. "
+            "Please install it with: pip install gspread"
+        )
+        return
+
+    print("[Sheets] Checking for misaligned worksheets...")
+
+    try:
+        client = get_gspread_client()
+    except FileNotFoundError as e:
+        print(f"[Sheets] ERROR: {e}")
+        return
+    except Exception as e:
+        print(f"[Sheets] ERROR: Could not authenticate with Google Sheets: {e}")
+        return
+
+    try:
+        results = fix_all_worksheets(client)
+    except Exception as e:
+        print(f"[Sheets] ERROR: Could not fix worksheets: {e}")
+        return
+
+    fixed_count = 0
+    for worksheet_name, count in results.items():
+        if count > 0:
+            print(f"  [Sheets] Fixed '{worksheet_name}': realigned {count} receipt(s)")
+            fixed_count += count
+        else:
+            print(f"  [Sheets] '{worksheet_name}': already properly aligned")
+
+    if fixed_count > 0:
+        print(f"\n[Sheets] Done. Fixed {fixed_count} total receipt(s).")
+    else:
+        print("\n[Sheets] All worksheets are already properly aligned.")
+
+
+def upload_to_sheets(receipts: list[dict]):
+    """Uploads receipts to Google Sheets."""
+    try:
+        from sheets import (
+            get_gspread_client,
+            get_or_create_worksheet,
+            get_existing_receipts,
+            append_receipt,
+        )
+    except ImportError:
+        print(
+            "\n[Sheets] `gspread` library not found. "
+            "Please install it with: pip install gspread"
+        )
+        return
+
+    print("\n[Sheets] Starting upload to Google Sheets...")
+
+    try:
+        client = get_gspread_client()
+    except FileNotFoundError as e:
+        print(f"[Sheets] ERROR: {e}")
+        return
+    except Exception as e:
+        print(f"[Sheets] ERROR: Could not authenticate with Google Sheets: {e}")
+        return
+
+    worksheets = {}
+    new_receipts_count = 0
+
+    # Filter out receipts that are excluded from the table
+    receipts_to_upload, _ = _filter_excluded_receipts(receipts, print_warnings=False)
+
+    for receipt in receipts_to_upload:
+        date_str = receipt.get("date")
+        if not date_str:
+            continue
+
+        try:
+            # Use the existing _parse_date function
+            parsed_date = _parse_date(date_str)
+            if not parsed_date:
+                warning_message = (
+                    f"[Sheets] WARNING: Could not parse date '{date_str}', "
+                    "skipping receipt."
+                )
+                print(warning_message)
+                continue
+
+            # Format: "January 2026"
+            worksheet_title = parsed_date.strftime("%B %Y")
+        except (ValueError, TypeError):
+            warning_message = (
+                f"[Sheets] WARNING: Invalid date format for '{date_str}', "
+                "skipping receipt."
+            )
+            print(warning_message)
+            continue
+
+        if worksheet_title not in worksheets:
+            print(f"[Sheets] Accessing worksheet: '{worksheet_title}'...")
+            try:
+                worksheet = get_or_create_worksheet(client, worksheet_title)
+                existing_receipts = get_existing_receipts(worksheet)
+                worksheets[worksheet_title] = (worksheet, existing_receipts)
+            except Exception as e:
+                error_message = (
+                    f"[Sheets] ERROR: Could not access or create worksheet "
+                    f"'{worksheet_title}': {e}"
+                )
+                print(error_message)
+                continue
+
+        worksheet, existing_receipts = worksheets[worksheet_title]
+
+        # Create a unique key for the receipt to check for duplicates
+        receipt_key = (
+            str(receipt.get("date")),
+            str(receipt.get("amount")),
+            str(receipt.get("vendor")),
+        )
+
+        if receipt_key not in existing_receipts:
+            try:
+                append_receipt(worksheet, receipt)
+                existing_receipts.add(receipt_key)
+                new_receipts_count += 1
+                vendor = receipt.get("vendor")
+                date = receipt.get("date")
+                print(f"  [Sheets] Added new receipt: {vendor} on {date}")
+            except Exception as e:
+                print(f"[Sheets] ERROR: Could not append receipt to worksheet: {e}")
+
+    print(f"\n[Sheets] Upload complete. Added {new_receipts_count} new receipt(s).")
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(
         description="Receipt Ranger -- extract structured data from receipt images."
@@ -515,6 +660,16 @@ def main() -> None:
         help="Print a TSV table of all stored receipts.",
     )
     parser.add_argument(
+        "--upload-to-sheets",
+        action="store_true",
+        help="Uploads all processed receipts to Google Sheets.",
+    )
+    parser.add_argument(
+        "--fix-sheets",
+        action="store_true",
+        help="Fix misaligned data in existing Google Sheets worksheets.",
+    )
+    parser.add_argument(
         "--month",
         help="Filter stored receipts by month (YYYY-MM).",
     )
@@ -540,13 +695,24 @@ def main() -> None:
     )
     args = parser.parse_args()
 
-    if args.files and (args.table or args.tsv or args.tsv_all):
+    if args.files and (
+        args.table
+        or args.tsv
+        or args.tsv_all
+        or args.upload_to_sheets
+        or args.fix_sheets
+    ):
         parser.error(
-            "Cannot specify files to reprocess when using viewing-only options "
-            "like --table, --tsv, or --tsv-all."
+            "Cannot specify files to reprocess when using viewing-only or "
+            "upload options like --table, --tsv, --tsv-all, --upload-to-sheets, "
+            "or --fix-sheets."
         )
 
-    if args.table or args.tsv or args.tsv_all:
+    if args.fix_sheets:
+        fix_google_sheets()
+        sys.exit(0)
+
+    if args.table or args.tsv or args.tsv_all or args.upload_to_sheets:
         state = load_state()
         receipts = _load_stored_receipts(state)
         if not receipts:
@@ -557,7 +723,7 @@ def main() -> None:
         table_receipts, excluded = _filter_excluded_receipts(
             receipts, print_warnings=False
         )
-        if excluded:
+        if excluded and not args.upload_to_sheets:
             print(f"Note: {len(excluded)} receipt(s) excluded from table output.\n")
 
         if args.tsv or args.tsv_all:
@@ -576,6 +742,9 @@ def main() -> None:
 
         if args.table:
             print_table(dedupe_receipts(table_receipts))
+
+        if args.upload_to_sheets:
+            upload_to_sheets(receipts)
 
         sys.exit(0)
 

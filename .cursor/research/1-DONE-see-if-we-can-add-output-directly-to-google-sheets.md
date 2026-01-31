@@ -13,5 +13,6 @@ Currently, the app outputs receipt data in a TSV that's suitable to copy and pas
 
 This feature would need to first check if there are any duplicates. First, check if the entry is already in the Google Sheet, and only add the entry if it isn't. Do this for each new entry. The application would probably iterate through either the JSON or the TSV file with all receipt records, and then add them to the Google Sheet accordingly. 
 
-This would also be good to break down by month. That is a different Google sheet for November, December, January, etc. And place the entries in their appropriate sheet. 
+This would also be good to break down by month. That is a different Google sheet for November, December, January, etc. And place the entries in their appropriate sheet.
 
+<!-- DONE -->

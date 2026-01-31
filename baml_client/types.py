@@ -71,9 +71,9 @@ class ReceiptCategory(str, Enum):
 
 class Receipt(BaseModel):
     id: str = Field(description='For internal reference and programmatic use, would not go into V1 output table.')
-    amount: float = Field(description='The total amount of the receipt. Include all tips, taxes, etc. in the amount.')
-    date: str = Field(description='The date of the receipt. Format should be MM/DD/YYYY.')
-    vendor: str = Field(description='The vendor of the receipt.')
+    amount: float = Field(description='The total amount of the receipt. Include all tips, taxes, etc. in the amount. If you cannot determine the amount, just put zero.')
+    date: str = Field(description='The date of the receipt. Format should be MM/DD/YYYY. If you cannot determine the date, just put an empty string.')
+    vendor: str = Field(description='The vendor of the receipt. If you cannot determine the vendor, just put an empty string.')
     category: typing.List[ReceiptCategory] = Field(description='The canonical categories for the receipt. Use only values from ReceiptCategory. If multiple categories are present, list them all. If you can\'t determine a category, present an empty list.')
     paymentMethod: typing.List[str] = Field(description='The method of payment used for the receipt. Examples could include: Cash, Card, Check, Gift Card, etc. If multiple payment methods are present, list them all. In the rare case when you can\'t determine a payment method, just present an empty list.')
     excludeFromTable: bool = Field(description='Whether to exclude this receipt from the output table. Default is false. Should only be true if the receipt meets the exclusion conditions described in input documents.')

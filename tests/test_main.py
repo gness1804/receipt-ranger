@@ -493,3 +493,47 @@ class TestFilterExcludedReceipts:
         )
         assert len(included) == 0
         assert len(excluded) == 2
+
+
+class TestFutureDateValidation:
+    def test_is_future_date_returns_true_for_future(self):
+        # A date far in the future should always be detected
+        assert main._is_future_date("12/31/2099") is True
+
+    def test_is_future_date_returns_false_for_past(self):
+        assert main._is_future_date("01/01/2020") is False
+
+    def test_is_future_date_returns_false_for_empty_string(self):
+        assert main._is_future_date("") is False
+
+    def test_is_future_date_returns_false_for_invalid_date(self):
+        assert main._is_future_date("not-a-date") is False
+
+    def test_get_current_date_str_format(self):
+        result = main._get_current_date_str()
+        # Should be in MM/DD/YYYY format
+        assert len(result) == 10
+        assert result[2] == "/"
+        assert result[5] == "/"
+
+    @patch("main.b")
+    def test_extract_receipt_replaces_future_date(self, mock_b, tmp_path, capsys):
+        img = tmp_path / "receipt.jpg"
+        img.write_bytes(b"fake image bytes")
+
+        mock_receipt = MagicMock()
+        mock_receipt.id = "r1"
+        mock_receipt.amount = 25.50
+        mock_receipt.date = "12/31/2099"  # Far future date
+        mock_receipt.vendor = "Test Store"
+        mock_receipt.category = []
+        mock_receipt.paymentMethod = ["Card"]
+        mock_receipt.excludeFromTable = False
+        mock_receipt.exclusionReason = ""
+        mock_b.ExtractReceiptFromImage.return_value = mock_receipt
+
+        result = main.extract_receipt(str(img), "No exclusion criteria.")
+
+        assert result["date"] == ""
+        captured = capsys.readouterr()
+        assert "Future date detected" in captured.out

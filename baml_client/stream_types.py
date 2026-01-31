@@ -28,9 +28,9 @@ class StreamState(BaseModel, typing.Generic[StreamStateValueT]):
 
 class Receipt(BaseModel):
     id: typing.Optional[str] = Field(default=None, description='For internal reference and programmatic use, would not go into V1 output table.')
-    amount: typing.Optional[float] = Field(default=None, description='The total amount of the receipt. Include all tips, taxes, etc. in the amount.')
-    date: typing.Optional[str] = Field(default=None, description='The date of the receipt. Format should be MM/DD/YYYY.')
-    vendor: typing.Optional[str] = Field(default=None, description='The vendor of the receipt.')
+    amount: typing.Optional[float] = Field(default=None, description='The total amount of the receipt. Include all tips, taxes, etc. in the amount. If you cannot determine the amount, just put zero.')
+    date: typing.Optional[str] = Field(default=None, description='The date of the receipt. Format should be MM/DD/YYYY. If you cannot determine the date, just put an empty string.')
+    vendor: typing.Optional[str] = Field(default=None, description='The vendor of the receipt. If you cannot determine the vendor, just put an empty string.')
     category: typing.List[types.ReceiptCategory] = Field(description='The canonical categories for the receipt. Use only values from ReceiptCategory. If multiple categories are present, list them all. If you can\'t determine a category, present an empty list.')
     paymentMethod: typing.List[str] = Field(description='The method of payment used for the receipt. Examples could include: Cash, Card, Check, Gift Card, etc. If multiple payment methods are present, list them all. In the rare case when you can\'t determine a payment method, just present an empty list.')
     excludeFromTable: typing.Optional[bool] = Field(default=None, description='Whether to exclude this receipt from the output table. Default is false. Should only be true if the receipt meets the exclusion conditions described in input documents.')

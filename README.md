@@ -105,6 +105,60 @@ The blank column is reserved for manual annotations.
 
 Stored receipt metadata (including processed hashes and extracted receipts) is tracked in `processed_receipts.json`.
 
+## Google Sheets Integration (Optional)
+
+Receipt Ranger can directly upload processed receipts to a Google Sheet, automatically creating monthly tabs and preventing duplicate entries.
+
+### 1. Set Up Google Cloud Credentials
+
+1.  **Create a Google Cloud Project:**
+    *   Go to the [Google Cloud Console](https://console.cloud.google.com/).
+    *   Create a new project (or use an existing one).
+
+2.  **Enable APIs:**
+    *   In your project, go to **APIs & Services > Library**.
+    *   Search for and enable both the **Google Drive API** and the **Google Sheets API**.
+
+3.  **Create a Service Account:**
+    *   Go to **APIs & Services > Credentials**.
+    *   Click **Create credentials > Service account**.
+    *   Give it a name (e.g., `receipt-ranger-updater`) and grant it the **Editor** role for the project.
+
+4.  **Generate a JSON Key:**
+    *   After creating the service account, click on it, go to the **Keys** tab.
+    *   Click **ADD KEY > Create new key**, select **JSON**, and click **Create**.
+    *   A JSON file will be downloaded. **Rename this file to `service_account.json`** and place it in the root directory of the `receipt-ranger` project.
+
+    _**Important:** This file contains sensitive credentials. It is already listed in `.gitignore` to prevent it from being committed to version control._
+
+### 2. Create and Share Your Google Sheet
+
+1.  **Create a new Google Sheet.** You can name it whatever you like, but the application will look for a sheet named **`receipt-ranger`** by default.
+2.  **Share the sheet** with your service account.
+    *   Open the `service_account.json` file and find the `client_email` address (e.g., `...iam.gserviceaccount.com`).
+    *   In your Google Sheet, click **Share**, paste the service account's email address, and give it **Editor** permissions.
+
+### 3. Upload Receipts to Google Sheets
+
+Once configured, use the `--upload-to-sheets` flag to upload all locally stored receipts:
+
+```bash
+python3 main.py --upload-to-sheets
+```
+
+The script will:
+- Authenticate using your `service_account.json`.
+- Find or create a worksheet for each month and year (e.g., "January 2026").
+- Check for duplicate receipts (based on Date, Amount, and Vendor) and only add new ones.
+
+You can also process new receipts and upload them in the same run:
+
+```bash
+python3 main.py --upload-to-sheets
+```
+
+If there are new receipts in the `data/receipts` folder, they will be processed first, and then all receipts (new and previously stored) will be uploaded.
+
 ## Development
 
 ### Running tests
