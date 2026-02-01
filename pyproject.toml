@@ -20,6 +20,7 @@ classifiers = [
 dependencies = [
     "baml-py>=0.218.0",
     "gspread>=5.12.4",
+    "streamlit>=1.32.0",
 ]
 
 [project.optional-dependencies]

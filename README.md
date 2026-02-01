@@ -31,7 +31,27 @@ OPENAI_API_KEY=your-key-here
 
 ## Usage
 
-Place receipt images (`.jpg`, `.jpeg`, `.png`, `.gif`, `.bmp`, `.webp`, `.tiff`) in `.cursor/data/receipts/`, then run:
+### Web Interface (Recommended)
+
+The easiest way to use Receipt Ranger is through the web interface:
+
+```bash
+streamlit run app.py
+```
+
+This launches a browser-based UI where you can:
+- Upload one or multiple receipt images
+- Preview and remove images before processing
+- Enter your API key (stored only in your session)
+- Process receipts and view extracted data
+- Automatically upload to Google Sheets
+- Download results as TSV or JSON
+
+**Note:** The web interface validates that uploaded images are actual receipts. Non-receipt images (photos, screenshots, etc.) will be rejected with an explanation.
+
+### Command Line Interface
+
+Place receipt images (`.jpg`, `.jpeg`, `.png`, `.gif`, `.bmp`, `.webp`, `.tiff`) in `data/receipts/`, then run:
 
 ```bash
 python3 main.py

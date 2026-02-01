@@ -97,6 +97,21 @@ class BamlAsyncClient:
                 "image": image,"exclusionCriteria": exclusionCriteria,"currentDate": currentDate,
             })
             return typing.cast(types.Receipt, __result__.cast_to(types, types, stream_types, False, __runtime__))
+    async def ExtractReceiptFromImageOpenAI(self, image: baml_py.Image,exclusionCriteria: str,currentDate: str,
+        baml_options: BamlCallOptions = {},
+    ) -> types.Receipt:
+        # Check if on_tick is provided
+        if 'on_tick' in baml_options:
+            # Use streaming internally when on_tick is provided
+            __stream__ = self.stream.ExtractReceiptFromImageOpenAI(image=image,exclusionCriteria=exclusionCriteria,currentDate=currentDate,
+                baml_options=baml_options)
+            return await __stream__.get_final_response()
+        else:
+            # Original non-streaming code
+            __result__ = await self.__options.merge_options(baml_options).call_function_async(function_name="ExtractReceiptFromImageOpenAI", args={
+                "image": image,"exclusionCriteria": exclusionCriteria,"currentDate": currentDate,
+            })
+            return typing.cast(types.Receipt, __result__.cast_to(types, types, stream_types, False, __runtime__))
     async def ExtractResume(self, resume: str,
         baml_options: BamlCallOptions = {},
     ) -> types.Resume:
@@ -133,6 +148,18 @@ class BamlStreamClient:
           lambda x: typing.cast(types.Receipt, x.cast_to(types, types, stream_types, False, __runtime__)),
           __ctx__,
         )
+    def ExtractReceiptFromImageOpenAI(self, image: baml_py.Image,exclusionCriteria: str,currentDate: str,
+        baml_options: BamlCallOptions = {},
+    ) -> baml_py.BamlStream[stream_types.Receipt, types.Receipt]:
+        __ctx__, __result__ = self.__options.merge_options(baml_options).create_async_stream(function_name="ExtractReceiptFromImageOpenAI", args={
+            "image": image,"exclusionCriteria": exclusionCriteria,"currentDate": currentDate,
+        })
+        return baml_py.BamlStream[stream_types.Receipt, types.Receipt](
+          __result__,
+          lambda x: typing.cast(stream_types.Receipt, x.cast_to(types, types, stream_types, True, __runtime__)),
+          lambda x: typing.cast(types.Receipt, x.cast_to(types, types, stream_types, False, __runtime__)),
+          __ctx__,
+        )
     def ExtractResume(self, resume: str,
         baml_options: BamlCallOptions = {},
     ) -> baml_py.BamlStream[stream_types.Resume, types.Resume]:
@@ -160,6 +187,13 @@ class BamlHttpRequestClient:
             "image": image,"exclusionCriteria": exclusionCriteria,"currentDate": currentDate,
         }, mode="request")
         return __result__
+    async def ExtractReceiptFromImageOpenAI(self, image: baml_py.Image,exclusionCriteria: str,currentDate: str,
+        baml_options: BamlCallOptions = {},
+    ) -> baml_py.baml_py.HTTPRequest:
+        __result__ = await self.__options.merge_options(baml_options).create_http_request_async(function_name="ExtractReceiptFromImageOpenAI", args={
+            "image": image,"exclusionCriteria": exclusionCriteria,"currentDate": currentDate,
+        }, mode="request")
+        return __result__
     async def ExtractResume(self, resume: str,
         baml_options: BamlCallOptions = {},
     ) -> baml_py.baml_py.HTTPRequest:
@@ -179,6 +213,13 @@ class BamlHttpStreamRequestClient:
         baml_options: BamlCallOptions = {},
     ) -> baml_py.baml_py.HTTPRequest:
         __result__ = await self.__options.merge_options(baml_options).create_http_request_async(function_name="ExtractReceiptFromImage", args={
+            "image": image,"exclusionCriteria": exclusionCriteria,"currentDate": currentDate,
+        }, mode="stream")
+        return __result__
+    async def ExtractReceiptFromImageOpenAI(self, image: baml_py.Image,exclusionCriteria: str,currentDate: str,
+        baml_options: BamlCallOptions = {},
+    ) -> baml_py.baml_py.HTTPRequest:
+        __result__ = await self.__options.merge_options(baml_options).create_http_request_async(function_name="ExtractReceiptFromImageOpenAI", args={
             "image": image,"exclusionCriteria": exclusionCriteria,"currentDate": currentDate,
         }, mode="stream")
         return __result__

@@ -274,6 +274,8 @@ class TestExtractReceipt:
         img.write_bytes(b"fake image bytes")
 
         mock_receipt = MagicMock()
+        mock_receipt.isValidReceipt = True
+        mock_receipt.validationError = ""
         mock_receipt.id = "r1"
         mock_receipt.amount = 25.50
         mock_receipt.date = "01/20/2026"
@@ -286,6 +288,7 @@ class TestExtractReceipt:
 
         result = main.extract_receipt(str(img), "No exclusion criteria.")
 
+        assert result["isValidReceipt"] is True
         assert result["amount"] == 25.50
         assert result["vendor"] == "Test Store"
         assert result["category"] == ["Food & Restaurants"]
@@ -299,6 +302,8 @@ class TestExtractReceipt:
         img.write_bytes(b"fake image bytes")
 
         mock_receipt = MagicMock()
+        mock_receipt.isValidReceipt = True
+        mock_receipt.validationError = ""
         mock_receipt.id = "r2"
         mock_receipt.amount = 100.00
         mock_receipt.date = "01/25/2026"
@@ -313,6 +318,33 @@ class TestExtractReceipt:
 
         assert result["excludeFromTable"] is True
         assert result["exclusionReason"] == "Vendor is on exclusion list"
+
+    @patch("main.b")
+    def test_extract_invalid_receipt(self, mock_b, tmp_path):
+        """Test that invalid receipts are properly handled."""
+        img = tmp_path / "not_a_receipt.jpg"
+        img.write_bytes(b"fake image bytes")
+
+        mock_receipt = MagicMock()
+        mock_receipt.isValidReceipt = False
+        mock_receipt.validationError = "Image shows a landscape photo, not a receipt"
+        mock_receipt.id = ""
+        mock_receipt.amount = 0.0
+        mock_receipt.date = ""
+        mock_receipt.vendor = ""
+        mock_receipt.category = []
+        mock_receipt.paymentMethod = []
+        mock_receipt.excludeFromTable = False
+        mock_receipt.exclusionReason = ""
+        mock_b.ExtractReceiptFromImage.return_value = mock_receipt
+
+        result = main.extract_receipt(str(img), "No exclusion criteria.")
+
+        assert result["isValidReceipt"] is False
+        expected_error = "Image shows a landscape photo, not a receipt"
+        assert result["validationError"] == expected_error
+        assert result["amount"] == 0.0
+        assert result["vendor"] == ""
 
 
 class TestDedupeReceipts:
@@ -522,6 +554,8 @@ class TestFutureDateValidation:
         img.write_bytes(b"fake image bytes")
 
         mock_receipt = MagicMock()
+        mock_receipt.isValidReceipt = True
+        mock_receipt.validationError = ""
         mock_receipt.id = "r1"
         mock_receipt.amount = 25.50
         mock_receipt.date = "12/31/2099"  # Far future date

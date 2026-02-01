@@ -70,6 +70,8 @@ class ReceiptCategory(str, Enum):
 # #########################################################################
 
 class Receipt(BaseModel):
+    isValidReceipt: bool = Field(description='Whether this image is a valid receipt. Set to true only if the image clearly shows a receipt, invoice, or similar purchase document. Set to false for non-receipt images like photos, screenshots, memes, documents, etc.')
+    validationError: str = Field(description='If isValidReceipt is false, provide a brief explanation of why this is not a valid receipt (e.g., \'Image shows a landscape photo, not a receipt\'). If isValidReceipt is true, this should be an empty string.')
     id: str = Field(description='For internal reference and programmatic use, would not go into V1 output table.')
     amount: float = Field(description='The total amount of the receipt. Include all tips, taxes, etc. in the amount. If you cannot determine the amount, just put zero.')
     date: str = Field(description='The date of the receipt. Format should be MM/DD/YYYY. If you cannot determine the date, just put an empty string.')

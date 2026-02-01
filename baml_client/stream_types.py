@@ -27,6 +27,8 @@ class StreamState(BaseModel, typing.Generic[StreamStateValueT]):
 # #########################################################################
 
 class Receipt(BaseModel):
+    isValidReceipt: typing.Optional[bool] = Field(default=None, description='Whether this image is a valid receipt. Set to true only if the image clearly shows a receipt, invoice, or similar purchase document. Set to false for non-receipt images like photos, screenshots, memes, documents, etc.')
+    validationError: typing.Optional[str] = Field(default=None, description='If isValidReceipt is false, provide a brief explanation of why this is not a valid receipt (e.g., \'Image shows a landscape photo, not a receipt\'). If isValidReceipt is true, this should be an empty string.')
     id: typing.Optional[str] = Field(default=None, description='For internal reference and programmatic use, would not go into V1 output table.')
     amount: typing.Optional[float] = Field(default=None, description='The total amount of the receipt. Include all tips, taxes, etc. in the amount. If you cannot determine the amount, just put zero.')
     date: typing.Optional[str] = Field(default=None, description='The date of the receipt. Format should be MM/DD/YYYY. If you cannot determine the date, just put an empty string.')
