@@ -187,7 +187,7 @@ class ReceiptAst:
     def __init__(self, tb: type_builder.TypeBuilder):
         _tb = tb._tb # type: ignore (we know how to use this private attribute)
         self._bldr = _tb.class_("Receipt")
-        self._properties: typing.Set[str] = set([  "id",  "amount",  "date",  "vendor",  "category",  "paymentMethod",  "excludeFromTable",  "exclusionReason",  ])
+        self._properties: typing.Set[str] = set([  "isValidReceipt",  "validationError",  "id",  "amount",  "date",  "vendor",  "category",  "paymentMethod",  "excludeFromTable",  "exclusionReason",  ])
         self._props = ReceiptProperties(self._bldr, self._properties)
 
     def type(self) -> baml_py.FieldType:
@@ -214,6 +214,14 @@ class ReceiptProperties:
         self.__properties = properties # type: ignore (we know how to use this private attribute) # noqa: F821
 
     
+    
+    @property
+    def isValidReceipt(self) -> type_builder.ClassPropertyViewer:
+        return type_builder.ClassPropertyViewer(self.__bldr.property("isValidReceipt"))
+    
+    @property
+    def validationError(self) -> type_builder.ClassPropertyViewer:
+        return type_builder.ClassPropertyViewer(self.__bldr.property("validationError"))
     
     @property
     def id(self) -> type_builder.ClassPropertyViewer:

@@ -386,9 +386,51 @@ def extract_receipt(filepath: str, exclusion_criteria: str) -> dict:
     with open(filepath, "rb") as f:
         image_data = base64.standard_b64encode(f.read()).decode("utf-8")
 
+    return extract_receipt_from_bytes(image_data, mime_type, exclusion_criteria)
+
+
+def extract_receipt_from_bytes(
+    image_data: str,
+    mime_type: str,
+    exclusion_criteria: str,
+    provider: str = "Anthropic",
+) -> dict:
+    """Run BAML extraction on base64-encoded image data and return the result as a dict.
+
+    Args:
+        image_data: Base64-encoded image data
+        mime_type: MIME type of the image (e.g., "image/jpeg")
+        exclusion_criteria: Exclusion criteria text for the LLM
+        provider: LLM provider to use ("Anthropic" or "OpenAI")
+
+    Returns:
+        Dictionary containing receipt data, including validation status
+    """
     image = baml_py.Image.from_base64(mime_type, image_data)
     current_date = _get_current_date_str()
-    receipt = b.ExtractReceiptFromImage(image, exclusion_criteria, current_date)
+
+    # Use the appropriate extraction function based on provider
+    if provider == "OpenAI":
+        receipt = b.ExtractReceiptFromImageOpenAI(
+            image, exclusion_criteria, current_date
+        )
+    else:
+        receipt = b.ExtractReceiptFromImage(image, exclusion_criteria, current_date)
+
+    # Check if the image is a valid receipt
+    if not receipt.isValidReceipt:
+        return {
+            "isValidReceipt": False,
+            "validationError": receipt.validationError,
+            "id": "",
+            "amount": 0.0,
+            "date": "",
+            "vendor": "",
+            "category": [],
+            "paymentMethod": [],
+            "excludeFromTable": False,
+            "exclusionReason": "",
+        }
 
     # Validate the date - replace future dates with empty string
     extracted_date = receipt.date
@@ -400,6 +442,8 @@ def extract_receipt(filepath: str, exclusion_criteria: str) -> dict:
         extracted_date = ""
 
     return {
+        "isValidReceipt": True,
+        "validationError": "",
         "id": receipt.id,
         "amount": receipt.amount,
         "date": extracted_date,

@@ -212,3 +212,54 @@ def fix_all_worksheets(client: gspread.Client) -> dict[str, int]:
         results[name] = count
 
     return results
+
+
+def get_all_existing_receipts(client: gspread.Client) -> set:
+    """
+    Get all existing receipts across all worksheets in the spreadsheet.
+    Returns a set of (date, amount, vendor) tuples.
+    """
+    try:
+        spreadsheet = client.open(SPREADSHEET_NAME)
+    except gspread.SpreadsheetNotFound:
+        return set()
+
+    all_receipts = set()
+    for worksheet in spreadsheet.worksheets():
+        try:
+            existing = get_existing_receipts(worksheet)
+            all_receipts.update(existing)
+        except Exception:
+            # Skip worksheets that can't be read
+            continue
+
+    return all_receipts
+
+
+def check_receipts_for_duplicates(
+    client: gspread.Client, receipts: list[dict]
+) -> list[dict]:
+    """
+    Check a list of receipts against existing Google Sheets data.
+    Returns a list of receipts that already exist in the sheets.
+
+    Args:
+        client: Authenticated gspread client
+        receipts: List of receipt dicts to check
+
+    Returns:
+        List of receipt dicts that are duplicates (already in sheets)
+    """
+    existing = get_all_existing_receipts(client)
+    duplicates = []
+
+    for receipt in receipts:
+        receipt_key = (
+            str(receipt.get("date", "")),
+            str(receipt.get("amount", "")),
+            str(receipt.get("vendor", "")),
+        )
+        if receipt_key in existing:
+            duplicates.append(receipt)
+
+    return duplicates

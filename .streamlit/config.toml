@@ -1,0 +1,19 @@
+[client]
+# Disable the "Deploy" button in the top right
+showSidebarNavigation = false
+toolbarMode = "minimal"
+
+[server]
+# Disable the deploy button
+enableStaticServing = false
+
+[ui]
+# Hide the deploy button
+hideTopBar = false
+
+[theme]
+# Use a green primary color instead of red (green = action/go)
+primaryColor = "#28a745"
+backgroundColor = "#ffffff"
+secondaryBackgroundColor = "#f8f9fa"
+textColor = "#212529"

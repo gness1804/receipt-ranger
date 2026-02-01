@@ -30,6 +30,12 @@ class LlmResponseParser:
         __result__ = self.__options.merge_options(baml_options).parse_response(function_name="ExtractReceiptFromImage", llm_response=llm_response, mode="request")
         return typing.cast(types.Receipt, __result__)
 
+    def ExtractReceiptFromImageOpenAI(
+        self, llm_response: str, baml_options: BamlCallOptions = {},
+    ) -> types.Receipt:
+        __result__ = self.__options.merge_options(baml_options).parse_response(function_name="ExtractReceiptFromImageOpenAI", llm_response=llm_response, mode="request")
+        return typing.cast(types.Receipt, __result__)
+
     def ExtractResume(
         self, llm_response: str, baml_options: BamlCallOptions = {},
     ) -> types.Resume:
@@ -48,6 +54,12 @@ class LlmStreamParser:
         self, llm_response: str, baml_options: BamlCallOptions = {},
     ) -> stream_types.Receipt:
         __result__ = self.__options.merge_options(baml_options).parse_response(function_name="ExtractReceiptFromImage", llm_response=llm_response, mode="stream")
+        return typing.cast(stream_types.Receipt, __result__)
+
+    def ExtractReceiptFromImageOpenAI(
+        self, llm_response: str, baml_options: BamlCallOptions = {},
+    ) -> stream_types.Receipt:
+        __result__ = self.__options.merge_options(baml_options).parse_response(function_name="ExtractReceiptFromImageOpenAI", llm_response=llm_response, mode="stream")
         return typing.cast(stream_types.Receipt, __result__)
 
     def ExtractResume(
