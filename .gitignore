@@ -191,6 +191,7 @@ cython_debug/
 # Receipt Ranger
 processed_receipts.json
 output/
+logs/
 .cursor/tmp/
 data/exclusion_criteria.txt
 data/receipts/

@@ -4,8 +4,27 @@ showSidebarNavigation = false
 toolbarMode = "minimal"
 
 [server]
-# Disable the deploy button
+# Run in headless mode (no browser auto-open)
+headless = true
+
+# Listen on all interfaces for production
+address = "0.0.0.0"
+
+# Default Streamlit port (Nginx will proxy to this)
+port = 8501
+
+# Enable XSRF protection
+enableXsrfProtection = true
+
+# Max upload size in MB (receipts are typically small images)
+maxUploadSize = 10
+
+# Disable static serving
 enableStaticServing = false
+
+[browser]
+# Don't try to open browser on server
+gatherUsageStats = false
 
 [ui]
 # Hide the deploy button

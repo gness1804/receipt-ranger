@@ -179,6 +179,18 @@ python3 main.py --upload-to-sheets
 
 If there are new receipts in the `data/receipts` folder, they will be processed first, and then all receipts (new and previously stored) will be uploaded.
 
+## Deployment
+
+Receipt Ranger can be deployed to AWS EC2 for access from any device (including mobile). See [`deploy/README.md`](deploy/README.md) for a comprehensive guide covering:
+
+- AWS EC2 instance setup
+- Nginx reverse proxy configuration
+- CloudFlare DNS and SSL setup
+- Security hardening (firewall, fail2ban)
+- Auto-restart with systemd
+
+The deployed app uses a "bring your own API key" model - users enter their OpenAI/Anthropic keys via the web interface, so your keys are never exposed.
+
 ## Development
 
 ### Running tests

@@ -1,0 +1,11 @@
+# Receipt Ranger - Production Dependencies
+# Generated from pyproject.toml
+
+# Core dependencies
+baml-py>=0.218.0
+gspread>=5.12.4
+streamlit>=1.32.0
+
+# Required by gspread for Google Sheets authentication
+google-auth>=2.0.0
+google-auth-oauthlib>=1.0.0
