@@ -1,4 +1,13 @@
+---
+github_issue: 18
+---
 # AWS Deployment Handoff Document
+
+## Working directory
+
+`~/Desktop/receipt-ranger`
+
+## Contents
 
 **Date:** 2026-02-04
 **Branch:** `feature/aws-deployment`
@@ -167,3 +176,7 @@ If the user returns with deployment issues, common areas to investigate:
 2. **WebSocket errors** - Nginx config missing upgrade headers
 3. **SSL issues** - CloudFlare proxy mode not enabled
 4. **App won't start on reboot** - Cron or systemd misconfigured
+
+## Acceptance criteria
+
+<!-- DONE -->
