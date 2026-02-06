@@ -74,6 +74,7 @@ Protect yourself from unexpected charges:
 
 ### 1.4 Connect to Your Instance
 
+**Run on: Local machine**
 ```bash
 # Set correct permissions on key file
 chmod 400 ~/Downloads/receipt-ranger-key.pem
@@ -90,12 +91,14 @@ Run these commands after SSH-ing into your instance.
 
 ### 2.1 Update System
 
+**Run on: EC2 instance**
 ```bash
 sudo apt update && sudo apt upgrade -y
 ```
 
 ### 2.2 Install Python and Dependencies
 
+**Run on: EC2 instance**
 ```bash
 # Install Python 3.10+ and pip
 sudo apt install -y python3 python3-pip python3-venv
@@ -106,12 +109,14 @@ python3 --version  # Should be 3.10+
 
 ### 2.3 Install Nginx
 
+**Run on: EC2 instance**
 ```bash
 sudo apt install -y nginx
 ```
 
 ### 2.4 Configure Nginx
 
+**Run on: EC2 instance**
 ```bash
 # Backup default config
 sudo cp /etc/nginx/nginx.conf /etc/nginx/nginx.conf.backup
@@ -120,18 +125,20 @@ sudo cp /etc/nginx/nginx.conf /etc/nginx/nginx.conf.backup
 sudo vim /etc/nginx/nginx.conf
 ```
 
-**Paste the contents of `deploy/nginx.conf` from this repository** (replace `YOUR-DOMAIN.COM` with your actual domain).
+**Paste the contents of `deploy/nginx.conf` from this repository.**
 
 Save and exit: Press `Esc`, then type `:wq`, then `Enter`.
 
 ### 2.5 Create www User for Nginx
 
+**Run on: EC2 instance**
 ```bash
 sudo adduser --system --no-create-home --shell /bin/false --group --disabled-login www
 ```
 
 ### 2.6 Test and Start Nginx
 
+**Run on: EC2 instance**
 ```bash
 # Test configuration
 sudo nginx -t
@@ -168,19 +175,41 @@ sudo systemctl enable nginx  # Start on boot
    - **Target**: your-domain.com
    - **Proxy status**: Proxied
 
-### 3.3 Configure SSL
+### 3.3 Generate Self-Signed SSL Certificate on EC2
+
+A self-signed cert is needed so Cloudflare can connect to the origin over HTTPS ("Full" mode). Cloudflare does not verify the origin cert in "Full" mode (only "Full (Strict)" does).
+
+**Run on: EC2 instance**
+```bash
+sudo openssl req -x509 -nodes -days 365 -newkey rsa:2048 \
+  -keyout /etc/ssl/private/nginx-selfsigned.key \
+  -out /etc/ssl/certs/nginx-selfsigned.crt \
+  -subj "/CN=receipt-ranger.com"
+```
+
+Then copy the updated `deploy/nginx.conf` to `/etc/nginx/nginx.conf` on the EC2 instance and reload:
+
+**Run on: EC2 instance**
+```bash
+sudo nginx -t && sudo systemctl reload nginx
+```
+
+### 3.4 Open Port 443 in AWS Security Group
+
+Add an inbound rule for HTTPS (port 443) from Cloudflare IP ranges. You can find the current list at https://www.cloudflare.com/ips/. Add each CIDR block as a separate inbound rule for port 443.
+
+### 3.5 Configure Cloudflare SSL
 
 1. Go to **SSL/TLS** > **Overview**
-2. Set encryption mode to **Flexible** (easiest) or **Full** (more secure, requires more setup)
+2. Set encryption mode to **Full**
 
-   > **Flexible**: CloudFlare handles SSL, traffic to your server is HTTP
-   > **Full**: Requires SSL cert on your server (more complex)
+   > **Important:** Do NOT use "Flexible" mode. It causes WebSocket failures because Cloudflare downgrades `wss://` to `ws://`, which breaks Streamlit's streaming connection. "Full" mode keeps the entire path encrypted and preserves WebSocket upgrades.
 
 3. Go to **SSL/TLS** > **Edge Certificates**
 4. Enable **Always Use HTTPS**: On
 5. Enable **Automatic HTTPS Rewrites**: On
 
-### 3.4 (Recommended) Enable Rate Limiting
+### 3.6 (Recommended) Enable Rate Limiting
 
 1. Go to **Security** > **WAF** > **Rate limiting rules**
 2. Create a rule:
@@ -196,6 +225,8 @@ sudo systemctl enable nginx  # Start on boot
 ### 4.1 Upload Application Files
 
 **Option A: Clone from GitHub** (if repo is public or you set up deploy keys)
+
+**Run on: EC2 instance**
 ```bash
 cd ~
 git clone https://github.com/YOUR_USERNAME/receipt-ranger.git
@@ -203,13 +234,15 @@ cd receipt-ranger
 ```
 
 **Option B: Upload via SFTP** (using FileZilla or command line)
+
+**Run on: Local machine**
 ```bash
-# From your LOCAL machine
 scp -i ~/Downloads/receipt-ranger-key.pem -r /path/to/receipt-ranger ubuntu@YOUR_ELASTIC_IP:~/
 ```
 
 ### 4.2 Set Up Python Environment
 
+**Run on: EC2 instance**
 ```bash
 cd ~/receipt-ranger
 
@@ -227,16 +260,19 @@ pip install -r requirements.txt
 
 If you want Google Sheets integration:
 
+**Run on: Local machine**
 ```bash
-# From your LOCAL machine, upload the service account file
 scp -i ~/Downloads/receipt-ranger-key.pem /path/to/service_account.json ubuntu@YOUR_ELASTIC_IP:~/receipt-ranger/
+```
 
-# On the server, set correct permissions
+**Run on: EC2 instance**
+```bash
 chmod 600 ~/receipt-ranger/service_account.json
 ```
 
 ### 4.4 Test the Application
 
+**Run on: EC2 instance**
 ```bash
 cd ~/receipt-ranger
 source venv/bin/activate
@@ -257,6 +293,7 @@ Press `Ctrl+C` to stop.
 
 **Option A: Cron (Simple)**
 
+**Run on: EC2 instance**
 ```bash
 crontab -e
 ```
@@ -268,6 +305,7 @@ Add this line at the bottom (select vim as editor if prompted):
 
 **Option B: Systemd Service (More Robust)**
 
+**Run on: EC2 instance**
 ```bash
 # Create logs directory
 mkdir -p ~/receipt-ranger/logs
@@ -288,6 +326,7 @@ sudo systemctl status receipt-ranger
 
 ### 4.6 Reboot and Test
 
+**Run on: EC2 instance**
 ```bash
 sudo reboot
 ```
@@ -300,6 +339,7 @@ Wait 1-2 minutes, then visit your domain in a browser. The app should be running
 
 ### 5.1 Configure UFW Firewall
 
+**Run on: EC2 instance**
 ```bash
 # Enable UFW
 sudo ufw allow ssh
@@ -313,6 +353,7 @@ sudo ufw status
 
 ### 5.2 Install Fail2ban (SSH Protection)
 
+**Run on: EC2 instance**
 ```bash
 sudo apt install -y fail2ban
 sudo systemctl enable fail2ban
@@ -322,6 +363,8 @@ sudo systemctl start fail2ban
 ### 5.3 Keep System Updated
 
 Set up automatic security updates:
+
+**Run on: EC2 instance**
 ```bash
 sudo apt install -y unattended-upgrades
 sudo dpkg-reconfigure -plow unattended-upgrades
@@ -332,6 +375,8 @@ sudo dpkg-reconfigure -plow unattended-upgrades
 ## Troubleshooting
 
 ### App not loading
+
+**Run on: EC2 instance**
 ```bash
 # Check if Streamlit is running
 ps aux | grep streamlit
@@ -349,7 +394,16 @@ sudo tail -f /var/log/nginx/error.log
 
 ### SSL Certificate Issues
 - Make sure CloudFlare proxy is enabled (orange cloud)
-- Try "Flexible" SSL mode first
+- Use "Full" SSL mode (NOT "Flexible" -- see below)
+
+### WebSocket Failures (Streamlit infinite loading spinner)
+
+If the app loads but shows an infinite spinner, and browser console shows errors like `wss://receipt-ranger.com/_stcore/stream failed`:
+
+- **Root cause:** Cloudflare "Flexible" SSL mode downgrades `wss://` (secure WebSocket) to `ws://` (plain WebSocket) when forwarding to the origin. This protocol mismatch breaks Streamlit's streaming connection.
+- **Fix:** Use Cloudflare "Full" SSL mode with a self-signed cert on the origin (see Phase 3.3-3.5). This keeps the entire path encrypted and preserves WebSocket upgrades.
+- **Verify on EC2:** `sudo ss -tlnp | grep :443` should show Nginx listening on 443.
+- **Verify Nginx config:** `sudo nginx -t` should pass with no errors.
 
 ### Can't SSH
 - Check security group allows SSH from your IP
@@ -360,6 +414,8 @@ sudo tail -f /var/log/nginx/error.log
 ## Maintenance
 
 ### View Logs
+
+**Run on: EC2 instance**
 ```bash
 # Streamlit logs
 tail -f ~/streamlit.log
@@ -372,6 +428,8 @@ sudo tail -f /var/log/nginx/error.log
 ```
 
 ### Update Application
+
+**Run on: EC2 instance**
 ```bash
 cd ~/receipt-ranger
 git pull  # If using git
@@ -381,6 +439,8 @@ sudo systemctl restart receipt-ranger  # Or kill and restart if using cron
 ```
 
 ### Restart Services
+
+**Run on: EC2 instance**
 ```bash
 sudo systemctl restart nginx
 sudo systemctl restart receipt-ranger
