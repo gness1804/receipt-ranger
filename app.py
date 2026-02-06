@@ -29,6 +29,7 @@ from main import (  # noqa: E402
 
 # Constants
 SUPPORTED_TYPES = ["jpg", "jpeg", "png", "gif", "bmp", "webp", "tiff"]
+GOOGLE_SHEETS_ENABLED = os.environ.get("ENABLE_GOOGLE_SHEETS", "true").lower() == "true"
 
 
 def get_mime_type(filename: str) -> str | None:
@@ -624,7 +625,10 @@ def main_app():
 
     # Configuration sections
     render_api_key_section()
-    sheets_available = render_google_sheets_status()
+    if GOOGLE_SHEETS_ENABLED:
+        sheets_available = render_google_sheets_status()
+    else:
+        sheets_available = False
 
     st.divider()
 
