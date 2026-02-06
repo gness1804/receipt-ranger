@@ -187,10 +187,13 @@ sudo openssl req -x509 -nodes -days 365 -newkey rsa:2048 \
   -subj "/CN=receipt-ranger.com"
 ```
 
-Then copy the updated `deploy/nginx.conf` to `/etc/nginx/nginx.conf` on the EC2 instance and reload:
+Then pull the latest code (which includes the updated Nginx config) and copy it into place:
 
 **Run on: EC2 instance**
 ```bash
+cd ~/receipt-ranger
+git pull
+sudo cp deploy/nginx.conf /etc/nginx/nginx.conf
 sudo nginx -t && sudo systemctl reload nginx
 ```
 
