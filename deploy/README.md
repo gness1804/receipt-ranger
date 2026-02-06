@@ -77,10 +77,10 @@ Protect yourself from unexpected charges:
 **Run on: Local machine**
 ```bash
 # Set correct permissions on key file
-chmod 400 ~/Downloads/receipt-ranger-key.pem
+chmod 400 ~/Secrets/receipt-ranger-key.pem
 
 # Connect via SSH (replace YOUR_ELASTIC_IP)
-ssh -i ~/Downloads/receipt-ranger-key.pem ubuntu@YOUR_ELASTIC_IP
+ssh -i ~/Secrets/receipt-ranger-key.pem ubuntu@YOUR_ELASTIC_IP
 ```
 
 ---
@@ -237,7 +237,7 @@ cd receipt-ranger
 
 **Run on: Local machine**
 ```bash
-scp -i ~/Downloads/receipt-ranger-key.pem -r /path/to/receipt-ranger ubuntu@YOUR_ELASTIC_IP:~/
+scp -i ~/Secrets/receipt-ranger-key.pem -r /path/to/receipt-ranger ubuntu@YOUR_ELASTIC_IP:~/
 ```
 
 ### 4.2 Set Up Python Environment
@@ -262,7 +262,7 @@ If you want Google Sheets integration:
 
 **Run on: Local machine**
 ```bash
-scp -i ~/Downloads/receipt-ranger-key.pem /path/to/service_account.json ubuntu@YOUR_ELASTIC_IP:~/receipt-ranger/
+scp -i ~/Secrets/receipt-ranger-key.pem /path/to/service_account.json ubuntu@YOUR_ELASTIC_IP:~/receipt-ranger/
 ```
 
 **Run on: EC2 instance**
