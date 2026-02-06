@@ -244,11 +244,18 @@ def process_receipts(files_to_process: dict, provider: str = "Anthropic") -> lis
 def render_header():
     """Render the app header."""
     st.title("🧾 Receipt Ranger")
-    st.markdown(
-        """
-        Upload receipt images to extract structured data and sync to Google Sheets.
-        """
-    )
+    if GOOGLE_SHEETS_ENABLED:
+        description = (
+            "Upload receipt images to extract structured data and "
+            "sync to Google Sheets (some setup required). "
+            "Also outputs data to TSV and CSV tables."
+        )
+    else:
+        description = (
+            "Upload receipt images to extract structured data. "
+            "Outputs data as TSV and CSV tables."
+        )
+    st.markdown(description)
 
 
 def render_api_key_section():
