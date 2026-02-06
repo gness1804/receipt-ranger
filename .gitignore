@@ -214,4 +214,8 @@ service_account.json
 marimo/_static/
 marimo/_lsp/
 __marimo__/
+
 .DS_Store
+
+# Temporary files and folders
+tmp/
