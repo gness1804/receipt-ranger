@@ -13,8 +13,10 @@ address = "0.0.0.0"
 # Default Streamlit port (Nginx will proxy to this)
 port = 8501
 
-# Enable XSRF protection
-enableXsrfProtection = true
+# Disable XSRF protection and CORS when behind a reverse proxy (Cloudflare/Nginx).
+# These checks reject proxied requests because the origin/IP doesn't match.
+enableXsrfProtection = false
+enableCORS = false
 
 # Max upload size in MB (receipts are typically small images)
 maxUploadSize = 10
