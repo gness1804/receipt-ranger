@@ -177,3 +177,4 @@ If the user returns with deployment issues, common areas to investigate:
 3. **SSL issues** - CloudFlare proxy mode not enabled
 4. **App won't start on reboot** - Cron or systemd misconfigured
 
+<!-- DONE -->
