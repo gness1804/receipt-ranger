@@ -109,8 +109,12 @@ def file_hash(filepath: str) -> str:
 def load_state() -> dict:
     """Load the processed receipts state file."""
     if os.path.exists(STATE_FILE):
-        with open(STATE_FILE, "r") as f:
-            return _normalize_state(json.load(f))
+        try:
+            with open(STATE_FILE, "r") as f:
+                data = json.load(f)
+            return _normalize_state(data)
+        except (json.JSONDecodeError, ValueError):
+            return _normalize_state({})
     return _normalize_state({})
 
 

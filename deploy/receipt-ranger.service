@@ -21,7 +21,7 @@ StandardError=append:/home/ubuntu/receipt-ranger/logs/streamlit.error.log
 NoNewPrivileges=true
 ProtectSystem=strict
 ProtectHome=read-only
-ReadWritePaths=/home/ubuntu/receipt-ranger/output /home/ubuntu/receipt-ranger/logs
+ReadWritePaths=/home/ubuntu/receipt-ranger/output /home/ubuntu/receipt-ranger/logs /home/ubuntu/receipt-ranger/processed_receipts.json
 
 [Install]
 WantedBy=multi-user.target
