@@ -216,10 +216,18 @@ Add an inbound rule for HTTPS (port 443) from Cloudflare IP ranges. You can find
 
 1. Go to **Security** > **WAF** > **Rate limiting rules**
 2. Create a rule:
-   - **Name**: Protect receipt uploads
+   - **Name**: General flood protection
    - **If incoming requests match**: URI Path contains `/`
-   - **Rate limit**: 100 requests per 10 seconds
-   - **Action**: Block for 1 minute
+   - **Rate limit**: 200 requests per 10 seconds
+   - **Action**: Block for 10 seconds
+
+> **Note:** Streamlit generates ~30-50 requests during page load and ~3-5 req/s
+> during normal use, so the threshold must be well above 100/10s. The previous
+> rule (100 req/10s, block 1 min) caused constant 429 errors. 200/10s provides
+> ~4x headroom over normal burst traffic while still catching automated abuse.
+> The free tier limits blocks to 10 seconds, but repeat offenders will keep
+> getting re-blocked on each subsequent window. Cloudflare's free tier allows
+> one rate limiting rule.
 
 ---
 
