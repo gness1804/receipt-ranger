@@ -191,6 +191,10 @@ Receipt Ranger can be deployed to AWS EC2 for access from any device (including 
 
 The deployed app uses a "bring your own API key" model - users enter their OpenAI/Anthropic keys via the web interface, so your keys are never exposed.
 
+## Documentation
+
+- Cloudflare bot protection enablement checklist: `docs/bot-protection-checklist.md`
+
 ## Development
 
 ### Running tests
