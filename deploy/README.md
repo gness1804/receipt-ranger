@@ -83,6 +83,11 @@ chmod 400 ~/Secrets/receipt-ranger-key.pem
 ssh -i ~/Secrets/receipt-ranger-key.pem ubuntu@YOUR_ELASTIC_IP
 ```
 
+> **⚠️ VPN WARNING:** If SSH hangs indefinitely, **check if your VPN is on.**
+> The EC2 security group allows SSH only from your IP. A VPN changes your
+> exit IP, so the connection will silently time out. Turn off the VPN and
+> try again.
+
 ---
 
 ## Phase 2: Server Configuration
@@ -371,15 +376,90 @@ sudo systemctl enable fail2ban
 sudo systemctl start fail2ban
 ```
 
-### 5.3 Keep System Updated
+### 5.3 Disable Unattended Upgrades
 
-Set up automatic security updates:
+Automatic updates can cause unexpected reboots or break the running app. Disable them and patch manually instead (see Maintenance section).
 
 **Run on: EC2 instance**
 ```bash
-sudo apt install -y unattended-upgrades
-sudo dpkg-reconfigure -plow unattended-upgrades
+sudo systemctl stop unattended-upgrades
+sudo systemctl disable unattended-upgrades
+sudo apt remove -y unattended-upgrades
 ```
+
+### 5.4 Add sshd Restart Policy
+
+Ensures SSH auto-restarts if it crashes, preventing lockouts.
+
+**Run on: EC2 instance**
+```bash
+sudo mkdir -p /etc/systemd/system/ssh.service.d
+sudo tee /etc/systemd/system/ssh.service.d/restart.conf <<'EOF'
+[Service]
+Restart=always
+RestartSec=5
+EOF
+sudo systemctl daemon-reload
+```
+
+### 5.5 (Recommended) Set Up AWS Systems Manager Session Manager
+
+Session Manager lets you access the instance through the AWS Console or CLI — no SSH key, no port 22, no VPN/IP issues. The SSM agent is pre-installed on Ubuntu 22.04 AMIs.
+
+#### Step 1: Create an IAM Role
+
+**Run in: AWS Console**
+
+1. Go to **IAM** > **Roles** > **Create role**
+2. **Trusted entity type**: AWS service
+3. **Use case**: EC2
+4. Search for and attach the policy: `AmazonSSMManagedInstanceCore`
+5. **Role name**: `receipt-ranger-ec2-ssm`
+6. Create the role
+
+#### Step 2: Attach the Role to the EC2 Instance
+
+1. Go to **EC2** > **Instances** > select `receipt-ranger`
+2. **Actions** > **Security** > **Modify IAM role**
+3. Select `receipt-ranger-ec2-ssm` and save
+
+#### Step 3: Verify the SSM Agent
+
+**Run on: EC2 instance** (via SSH for this one-time setup)
+```bash
+# Check agent is running
+sudo systemctl status snap.amazon-ssm-agent.amazon-ssm-agent.service
+
+# If not running:
+sudo snap start amazon-ssm-agent
+```
+
+#### Step 4: Connect via Session Manager
+
+**Option A — AWS Console:**
+1. Go to **EC2** > **Instances** > select `receipt-ranger`
+2. **Connect** > **Session Manager** > **Connect**
+
+**Option B — AWS CLI:**
+```bash
+aws ssm start-session --target <instance-id> --region us-east-2
+```
+
+> **Note:** Once Session Manager is working, you can optionally remove the
+> SSH (port 22) inbound rule from the security group entirely, eliminating
+> VPN/IP issues for good.
+
+### 5.6 (Optional) CloudWatch Auto-Reboot Alarm
+
+Automatically reboots the instance if status checks fail.
+
+1. Go to **EC2** > **Instances** > select `receipt-ranger`
+2. **Actions** > **Monitor and troubleshoot** > **Create status check alarm**
+3. Configure:
+   - **Alarm action**: Reboot this instance
+   - **Status check**: Status check failed (system)
+   - **Period**: 5 minutes
+   - **Consecutive periods**: 2 (reboot after 10 min of failure)
 
 ---
 
@@ -417,8 +497,14 @@ If the app loads but shows an infinite spinner, and browser console shows errors
 - **Verify Nginx config:** `sudo nginx -t` should pass with no errors.
 
 ### Can't SSH
+
+> **⚠️ VPN WARNING:** The most common cause of SSH hanging is **having a VPN
+> enabled.** The EC2 security group only allows SSH from your IP, and a VPN
+> changes your exit IP. Turn off the VPN first before trying anything else.
+
 - Check security group allows SSH from your IP
 - Verify key file permissions: `chmod 400 your-key.pem`
+- If your IP has changed (new network, ISP rotation), update the security group inbound rule: **EC2** > **Security** tab > **Security group** > **Edit inbound rules** > set SSH source to "My IP"
 
 ---
 
