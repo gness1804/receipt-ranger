@@ -31,6 +31,111 @@ class TestGetMimeType:
         assert get_mime_type("receipt.txt") is None
 
 
+class TestIsOwnerApiKey:
+    """Tests for the is_owner_api_key() function."""
+
+    @patch("app.st")
+    @patch("app.OWNER_OPENAI_API_KEY", "sk-owner-openai-key")
+    @patch("app.OWNER_ANTHROPIC_API_KEY", "sk-ant-owner-key")
+    def test_matching_openai_key(self, mock_st):
+        mock_st.session_state.get = lambda k, d="": {
+            "api_key": "sk-owner-openai-key",
+            "api_provider": "OpenAI",
+        }.get(k, d)
+
+        from app import is_owner_api_key
+
+        assert is_owner_api_key() is True
+
+    @patch("app.st")
+    @patch("app.OWNER_OPENAI_API_KEY", "sk-owner-openai-key")
+    @patch("app.OWNER_ANTHROPIC_API_KEY", "sk-ant-owner-key")
+    def test_matching_anthropic_key(self, mock_st):
+        mock_st.session_state.get = lambda k, d="": {
+            "api_key": "sk-ant-owner-key",
+            "api_provider": "Anthropic",
+        }.get(k, d)
+
+        from app import is_owner_api_key
+
+        assert is_owner_api_key() is True
+
+    @patch("app.st")
+    @patch("app.OWNER_OPENAI_API_KEY", "sk-owner-openai-key")
+    @patch("app.OWNER_ANTHROPIC_API_KEY", "sk-ant-owner-key")
+    def test_non_matching_key(self, mock_st):
+        mock_st.session_state.get = lambda k, d="": {
+            "api_key": "sk-some-other-key",
+            "api_provider": "OpenAI",
+        }.get(k, d)
+
+        from app import is_owner_api_key
+
+        assert is_owner_api_key() is False
+
+    @patch("app.st")
+    @patch("app.OWNER_OPENAI_API_KEY", "sk-owner-openai-key")
+    @patch("app.OWNER_ANTHROPIC_API_KEY", "sk-ant-owner-key")
+    def test_empty_api_key(self, mock_st):
+        mock_st.session_state.get = lambda k, d="": {
+            "api_key": "",
+            "api_provider": "OpenAI",
+        }.get(k, d)
+
+        from app import is_owner_api_key
+
+        assert is_owner_api_key() is False
+
+    @patch("app.st")
+    @patch("app.OWNER_OPENAI_API_KEY", "")
+    @patch("app.OWNER_ANTHROPIC_API_KEY", "")
+    def test_no_owner_keys_configured(self, mock_st):
+        mock_st.session_state.get = lambda k, d="": {
+            "api_key": "sk-some-key",
+            "api_provider": "OpenAI",
+        }.get(k, d)
+
+        from app import is_owner_api_key
+
+        assert is_owner_api_key() is False
+
+
+class TestSheetsAvailability:
+    """Tests for dynamic sheets availability based on owner key."""
+
+    @patch("app.is_owner_api_key", return_value=True)
+    @patch("app.GOOGLE_SHEETS_ENABLED", True)
+    def test_sheets_available_when_both_conditions_met(self, mock_owner):
+        from app import GOOGLE_SHEETS_ENABLED, is_owner_api_key
+
+        sheets_available = GOOGLE_SHEETS_ENABLED and is_owner_api_key()
+        assert sheets_available is True
+
+    @patch("app.is_owner_api_key", return_value=False)
+    @patch("app.GOOGLE_SHEETS_ENABLED", True)
+    def test_sheets_unavailable_when_key_doesnt_match(self, mock_owner):
+        from app import GOOGLE_SHEETS_ENABLED, is_owner_api_key
+
+        sheets_available = GOOGLE_SHEETS_ENABLED and is_owner_api_key()
+        assert sheets_available is False
+
+    @patch("app.is_owner_api_key", return_value=True)
+    @patch("app.GOOGLE_SHEETS_ENABLED", False)
+    def test_sheets_unavailable_when_flag_off(self, mock_owner):
+        from app import GOOGLE_SHEETS_ENABLED, is_owner_api_key
+
+        sheets_available = GOOGLE_SHEETS_ENABLED and is_owner_api_key()
+        assert sheets_available is False
+
+    @patch("app.is_owner_api_key", return_value=False)
+    @patch("app.GOOGLE_SHEETS_ENABLED", False)
+    def test_sheets_unavailable_when_both_off(self, mock_owner):
+        from app import GOOGLE_SHEETS_ENABLED, is_owner_api_key
+
+        sheets_available = GOOGLE_SHEETS_ENABLED and is_owner_api_key()
+        assert sheets_available is False
+
+
 class TestCheckGoogleSheetsSetup:
     @patch("sheets.os.path.exists")
     def test_missing_service_account_file(self, mock_exists):

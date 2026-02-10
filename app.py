@@ -30,6 +30,20 @@ from main import (  # noqa: E402
 # Constants
 SUPPORTED_TYPES = ["jpg", "jpeg", "png", "gif", "bmp", "webp", "tiff"]
 GOOGLE_SHEETS_ENABLED = os.environ.get("ENABLE_GOOGLE_SHEETS", "true").lower() == "true"
+OWNER_OPENAI_API_KEY = os.environ.get("OWNER_OPENAI_API_KEY", "")
+OWNER_ANTHROPIC_API_KEY = os.environ.get("OWNER_ANTHROPIC_API_KEY", "")
+
+
+def is_owner_api_key() -> bool:
+    """Check if the current session's API key matches the owner's key."""
+    api_key = st.session_state.get("api_key", "")
+    if not api_key:
+        return False
+    provider = st.session_state.get("api_provider", "OpenAI")
+    if provider == "OpenAI":
+        return bool(OWNER_OPENAI_API_KEY) and api_key == OWNER_OPENAI_API_KEY
+    else:
+        return bool(OWNER_ANTHROPIC_API_KEY) and api_key == OWNER_ANTHROPIC_API_KEY
 
 
 def get_mime_type(filename: str) -> str | None:
@@ -244,7 +258,7 @@ def process_receipts(files_to_process: dict, provider: str = "Anthropic") -> lis
 def render_header():
     """Render the app header."""
     st.title("🧾 Receipt Ranger")
-    if GOOGLE_SHEETS_ENABLED:
+    if GOOGLE_SHEETS_ENABLED and is_owner_api_key():
         description = (
             "Upload receipt images to extract structured data and "
             "sync to Google Sheets (some setup required). "
@@ -632,7 +646,7 @@ def main_app():
 
     # Configuration sections
     render_api_key_section()
-    if GOOGLE_SHEETS_ENABLED:
+    if GOOGLE_SHEETS_ENABLED and is_owner_api_key():
         sheets_available = render_google_sheets_status()
     else:
         sheets_available = False

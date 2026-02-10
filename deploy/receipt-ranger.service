@@ -8,7 +8,8 @@ User=ubuntu
 Group=ubuntu
 WorkingDirectory=/home/ubuntu/receipt-ranger
 Environment="PATH=/home/ubuntu/receipt-ranger/venv/bin"
-Environment="ENABLE_GOOGLE_SHEETS=false"
+Environment="ENABLE_GOOGLE_SHEETS=true"
+EnvironmentFile=/home/ubuntu/receipt-ranger/.env
 ExecStart=/home/ubuntu/receipt-ranger/venv/bin/streamlit run app.py --server.headless true
 Restart=always
 RestartSec=10
