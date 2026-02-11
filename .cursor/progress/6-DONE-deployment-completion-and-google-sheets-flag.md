@@ -94,3 +94,5 @@ This will pick up the `ENABLE_GOOGLE_SHEETS=false` env var in the systemd servic
 1. **Re-enable Cloudflare rate limiting** — The rule was disabled to fix WebSocket issues. It should be re-enabled with exclusions for Streamlit endpoints (`/_stcore/stream`, `/_stcore/health`, `/_stcore/host-config`), or with a higher threshold.
 2. **Per-user Google Sheets integration** — CFS features/7 (GitHub #19). User's preferred approach: let each user upload their own Google service account JSON and specify their own spreadsheet.
 3. **Todoist `cfs` label** — The label doesn't appear in the Todoist API's label list, even though tasks with it exist. May need to be recreated.
+
+<!-- DONE -->

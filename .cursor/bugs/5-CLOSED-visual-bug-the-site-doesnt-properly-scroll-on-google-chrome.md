@@ -18,3 +18,5 @@ See this screenshot below from Chrome.
 <img width="1900" height="1016" alt="Image" src="https://github.com/user-attachments/assets/96ab72c3-e7d5-4a8c-a04f-ad35a9284a56" />
 
 ## Acceptance criteria
+
+<!-- CLOSED -->
