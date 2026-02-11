@@ -2,8 +2,13 @@
 
 import base64
 import os
-import streamlit as st
-from datetime import datetime
+
+from dotenv import load_dotenv
+
+load_dotenv()
+
+import streamlit as st  # noqa: E402
+from datetime import datetime  # noqa: E402
 
 # Must set page config first, before any other st commands
 st.set_page_config(
