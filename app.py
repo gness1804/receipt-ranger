@@ -24,12 +24,7 @@ from main import (  # noqa: E402
     MIME_TYPES,
     extract_receipt_from_bytes,
     load_exclusion_criteria,
-    load_state,
-    save_state,
-    dedupe_receipts,
-    _merge_receipts_into_state,
     _filter_excluded_receipts,
-    file_hash,
 )
 
 # Constants
@@ -532,10 +527,10 @@ def process_and_display_results(sheets_available: bool):
     # Show results table
     render_results_table(valid_receipts)
 
-    # Save to state file
-    state = load_state()
-    _merge_receipts_into_state(state, valid_receipts)
-    save_state(state)
+    # NOTE: Duplicate detection in the web app relies on Google Sheets
+    # (owner-only). The CLI still uses processed_receipts.json for local
+    # dedup. A per-user persistence layer (e.g. DynamoDB) would be needed
+    # if the app scales beyond casual use without Google Sheets.
 
     # Upload to Google Sheets
     if sheets_available:
@@ -677,7 +672,7 @@ def main_app():
 
     # Footer
     st.divider()
-    st.caption("Receipt Ranger v0.6.3 | Process receipt images with AI")
+    st.caption("Receipt Ranger v0.6.4 | Process receipt images with AI")
 
 
 if __name__ == "__main__":
