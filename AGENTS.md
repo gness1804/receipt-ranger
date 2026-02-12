@@ -74,7 +74,9 @@ From `baml_src/receipt.baml`:
 
 ### State Tracking
 
-`processed_receipts.json` maps filenames to content hashes. On each run, only new/changed files are processed. The `--duplicates` flag bypasses this and reprocesses everything.
+`processed_receipts.json` is used by the **CLI only** (`main.py`). It maps filenames to content hashes so only new/changed files are processed. The `--duplicates` flag bypasses this and reprocesses everything.
+
+The **web interface** (`app.py`) does not use this file. Duplicate detection in the web app relies on Google Sheets (available only when the owner API key is detected). Non-owner web users currently have no persistent duplicate detection.
 
 ### Output Table Format
 

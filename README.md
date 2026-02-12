@@ -123,7 +123,7 @@ The table format:
 
 The blank column is reserved for manual annotations.
 
-Stored receipt metadata (including processed hashes and extracted receipts) is tracked in `processed_receipts.json`.
+The CLI tracks processed file hashes and extracted receipts in `processed_receipts.json` (gitignored) to avoid reprocessing unchanged files. The web interface does not use this file — it relies on Google Sheets for duplicate detection when available.
 
 ## Google Sheets Integration (Optional)
 
