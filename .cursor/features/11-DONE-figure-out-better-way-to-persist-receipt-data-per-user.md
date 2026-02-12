@@ -20,4 +20,6 @@ We will go with either number one or number two. We need to decide on which path
 ## Acceptance criteria
 
 - We need to figure out which of these solutions makes the most sense and implement it. 
-- The application will have a logical implementation regarding tracking duplicates if we decide to keep this feature at all. 
+- The application will have a logical implementation regarding tracking duplicates if we decide to keep this feature at all.
+
+<!-- DONE -->
