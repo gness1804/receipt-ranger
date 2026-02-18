@@ -1,3 +1,6 @@
+---
+github_issue: 34
+---
 # Deploy v0.7.0 — API Key Security Upgrade
 
 ## What changed
