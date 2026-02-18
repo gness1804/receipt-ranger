@@ -20,7 +20,6 @@ st.set_page_config(
 
 import main  # noqa: E402
 from main import (  # noqa: E402
-    VALID_EXTENSIONS,
     MIME_TYPES,
     extract_receipt_from_bytes,
     load_exclusion_criteria,
@@ -36,7 +35,10 @@ OWNER_ANTHROPIC_API_KEY = os.environ.get("OWNER_ANTHROPIC_API_KEY", "")
 
 def is_owner_api_key() -> bool:
     """Check if the current session's API key matches the owner's key."""
-    api_key = st.session_state.get("api_key", "")
+    from session import decrypt_api_key
+
+    token = st.session_state.get("api_key_token", "")
+    api_key = decrypt_api_key(token)
     if not api_key:
         return False
     provider = st.session_state.get("api_provider", "OpenAI")
@@ -63,8 +65,10 @@ def init_session_state():
         st.session_state.processing_complete = False
     if "duplicates_found" not in st.session_state:
         st.session_state.duplicates_found = []
-    if "api_key" not in st.session_state:
-        st.session_state.api_key = ""
+    if "api_key_token" not in st.session_state:
+        st.session_state.api_key_token = ""
+    if "api_key_clear_pending" not in st.session_state:
+        st.session_state.api_key_clear_pending = False
     if "api_provider" not in st.session_state:
         st.session_state.api_provider = "OpenAI"
 
@@ -91,12 +95,19 @@ def reset_processing():
 
 
 def set_api_key_env():
-    """Set the API key in the environment based on provider selection."""
-    if st.session_state.api_key:
+    """Set the API key in the environment based on provider selection.
+
+    Decrypts the stored token on demand; plaintext never persists in session_state.
+    """
+    from session import decrypt_api_key
+
+    token = st.session_state.get("api_key_token", "")
+    api_key = decrypt_api_key(token)
+    if api_key:
         if st.session_state.api_provider == "OpenAI":
-            os.environ["OPENAI_API_KEY"] = st.session_state.api_key
+            os.environ["OPENAI_API_KEY"] = api_key
         else:
-            os.environ["ANTHROPIC_API_KEY"] = st.session_state.api_key
+            os.environ["ANTHROPIC_API_KEY"] = api_key
 
 
 def check_google_sheets_setup() -> tuple[bool, str]:
@@ -108,7 +119,7 @@ def check_google_sheets_setup() -> tuple[bool, str]:
             return False, f"Service account file not found: {SERVICE_ACCOUNT_FILE}"
 
         # Try to authenticate
-        client = get_gspread_client()
+        get_gspread_client()
         return True, "Google Sheets configured successfully"
     except ImportError:
         return False, "gspread library not installed"
@@ -272,13 +283,36 @@ def render_header():
     st.markdown(description)
 
 
-def render_api_key_section():
+def _load_cookie_to_session(cookie) -> None:
+    """Load persisted encrypted token and provider from browser cookies.
+
+    Only loads the token if the session doesn't already have one and the cookie
+    contains a valid (decryptable) Fernet token.
+    """
+    if st.session_state.api_key_token:
+        return
+    stored = cookie.get("rr_session")
+    if stored:
+        from session import decrypt_api_key
+
+        if decrypt_api_key(stored) is not None:
+            st.session_state.api_key_token = stored
+            saved_provider = cookie.get("rr_provider")
+            if saved_provider in ("OpenAI", "Anthropic"):
+                st.session_state.api_provider = saved_provider
+
+
+def render_api_key_section(cookie=None):
     """Render the API key input section."""
-    with st.expander("🔑 API Configuration", expanded=not st.session_state.api_key):
+    from session import decrypt_api_key, encrypt_api_key, mask_api_key
+
+    has_token = bool(st.session_state.api_key_token)
+    with st.expander("🔑 API Configuration", expanded=not has_token):
         st.markdown(
             """
-            Enter your API key to process receipts. Your key is stored only in
-            your browser session and is never saved to disk.
+            Enter your API key to process receipts. Your key is encrypted with
+            Fernet symmetric encryption and saved as a secure browser cookie for
+            7 days — it is never stored as plaintext.
             """
         )
 
@@ -288,23 +322,41 @@ def render_api_key_section():
             provider = st.selectbox(
                 "Provider",
                 ["OpenAI", "Anthropic"],
-                key="api_provider_select",
                 index=0 if st.session_state.api_provider == "OpenAI" else 1,
             )
             st.session_state.api_provider = provider
 
         with col2:
-            api_key = st.text_input(
-                "API Key",
-                type="password",
-                value=st.session_state.api_key,
-                placeholder="sk-..." if provider == "OpenAI" else "sk-ant-...",
-                key="api_key_input",
-            )
-            st.session_state.api_key = api_key
-
-        if st.session_state.api_key:
-            st.success("✓ API key configured")
+            if has_token:
+                decrypted = decrypt_api_key(st.session_state.api_key_token)
+                masked = mask_api_key(decrypted) if decrypted else "Invalid token"
+                st.success(f"✓ API key configured: `{masked}`")
+                if st.button("Change API key", key="change_api_key_btn"):
+                    st.session_state.api_key_token = ""
+                    if cookie is not None:
+                        # Defer cookie.remove() to the next render via the flag.
+                        # Calling cookie.remove() + st.rerun() inline would abort
+                        # this render before the component JS could execute.
+                        st.session_state.api_key_clear_pending = True
+                    st.rerun()
+            else:
+                api_key = st.text_input(
+                    "API Key",
+                    type="password",
+                    placeholder="sk-..." if provider == "OpenAI" else "sk-ant-...",
+                    key="api_key_input",
+                )
+                if api_key:
+                    token = encrypt_api_key(api_key)
+                    st.session_state.api_key_token = token
+                    if cookie is not None:
+                        cookie.set("rr_session", token, max_age=7 * 24 * 60 * 60)
+                        cookie.set("rr_provider", provider, max_age=7 * 24 * 60 * 60)
+                    # Show immediate feedback without waiting for the cookie
+                    # component's async rerun. Don't call st.rerun() here — it
+                    # would abort this render before the component JS executes.
+                    masked = mask_api_key(decrypt_api_key(token) or "")
+                    st.success(f"✓ API key configured: `{masked}`")
 
 
 def render_google_sheets_status():
@@ -395,7 +447,7 @@ def render_submit_section(sheets_available: bool):
         st.info("Upload receipt images to get started.")
         return
 
-    if not st.session_state.api_key:
+    if not st.session_state.api_key_token:
         st.warning("Please enter your API key above to process receipts.")
         return
 
@@ -638,14 +690,32 @@ def render_download_section(receipts: list[dict]):
 
 def main_app():
     """Main application entry point."""
+    from streamlit_cookies_controller import CookieController
+
     init_session_state()
+
+    # Cookie-based session persistence (mirrors FAC's 7-day session cookie)
+    cookie = CookieController()
+
+    # Deferred cookie removal: "Change API key" sets this flag on the previous
+    # render so that cookie.remove() is called here (after rerun) rather than
+    # inline with st.rerun(), which would abort the render before the component
+    # JS could execute and actually remove the cookie.
+    clear_pending = st.session_state.api_key_clear_pending
+    if clear_pending:
+        cookie.remove("rr_session")
+        cookie.remove("rr_provider")
+        st.session_state.api_key_clear_pending = False
+
+    if not clear_pending:
+        _load_cookie_to_session(cookie)
 
     render_header()
 
     st.divider()
 
     # Configuration sections
-    render_api_key_section()
+    render_api_key_section(cookie)
     if GOOGLE_SHEETS_ENABLED and is_owner_api_key():
         sheets_available = render_google_sheets_status()
     else:

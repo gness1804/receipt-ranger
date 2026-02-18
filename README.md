@@ -20,7 +20,7 @@ A receipt scanner that extracts structured data from receipt images using LLM-po
 ### Installation
 
 ```bash
-pip install baml-py
+pip install -e .
 ```
 
 Set your API key in `baml_src/.env`:
@@ -28,6 +28,16 @@ Set your API key in `baml_src/.env`:
 ```
 OPENAI_API_KEY=your-key-here
 ```
+
+For the web interface, set a `SESSION_SECRET` in `.env` to encrypt user-submitted API keys at rest:
+
+```
+# Generate a Fernet key:
+# python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
+SESSION_SECRET=your-fernet-key-here
+```
+
+If `SESSION_SECRET` is unset, a random key is generated at startup (fine for local dev, but tokens won't survive a server restart).
 
 ## Usage
 
@@ -42,7 +52,7 @@ streamlit run app.py
 This launches a browser-based UI where you can:
 - Upload one or multiple receipt images
 - Preview and remove images before processing
-- Enter your API key (stored only in your session)
+- Enter your API key (Fernet-encrypted for the session — never stored as plaintext)
 - Process receipts and view extracted data
 - Automatically upload to Google Sheets
 - Download results as TSV or JSON
@@ -189,7 +199,9 @@ Receipt Ranger can be deployed to AWS EC2 for access from any device (including 
 - Security hardening (firewall, fail2ban)
 - Auto-restart with systemd
 
-The deployed app uses a "bring your own API key" model - users enter their OpenAI/Anthropic keys via the web interface, so your keys are never exposed.
+The deployed app uses a "bring your own API key" model - users enter their OpenAI/Anthropic keys via the web interface. Keys are Fernet-encrypted immediately on entry and stored only as an opaque token for the duration of the session.
+
+Set a stable `SESSION_SECRET` in your environment for production (see Setup below).
 
 ## Documentation
 
