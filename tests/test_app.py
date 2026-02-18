@@ -5,6 +5,50 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
+# ---------------------------------------------------------------------------
+# TestSession — tests for session.py encryption helpers
+# ---------------------------------------------------------------------------
+
+
+class TestSession:
+    """Tests for the Fernet-based session encryption helpers."""
+
+    def test_encrypt_then_decrypt_round_trips(self):
+        from session import decrypt_api_key, encrypt_api_key
+
+        original = "sk-test-key-1234567890"
+        token = encrypt_api_key(original)
+        assert token != original
+        assert decrypt_api_key(token) == original
+
+    def test_decrypt_invalid_token_returns_none(self):
+        from session import decrypt_api_key
+
+        assert decrypt_api_key("this-is-not-a-valid-token") is None
+
+    def test_decrypt_empty_string_returns_none(self):
+        from session import decrypt_api_key
+
+        assert decrypt_api_key("") is None
+
+    def test_mask_api_key_normal_key(self):
+        from session import mask_api_key
+
+        assert mask_api_key("sk-abcdefghijklmnopwxyz") == "sk-abcd...wxyz"
+
+    def test_mask_api_key_short_key(self):
+        from session import mask_api_key
+
+        assert mask_api_key("short") == "***"
+
+    def test_encrypted_tokens_are_opaque(self):
+        """Encrypted token should not contain the plaintext key."""
+        from session import encrypt_api_key
+
+        plaintext = "sk-secret-api-key"
+        token = encrypt_api_key(plaintext)
+        assert plaintext not in token
+
 
 class TestGetMimeType:
     def test_jpg_extension(self):
@@ -32,14 +76,19 @@ class TestGetMimeType:
 
 
 class TestIsOwnerApiKey:
-    """Tests for the is_owner_api_key() function."""
+    """Tests for the is_owner_api_key() function.
+
+    session.decrypt_api_key is patched so tests are independent of the
+    runtime Fernet key. The session_state mock supplies api_key_token.
+    """
 
     @patch("app.st")
     @patch("app.OWNER_OPENAI_API_KEY", "sk-owner-openai-key")
     @patch("app.OWNER_ANTHROPIC_API_KEY", "sk-ant-owner-key")
-    def test_matching_openai_key(self, mock_st):
+    @patch("session.decrypt_api_key", return_value="sk-owner-openai-key")
+    def test_matching_openai_key(self, mock_decrypt, mock_st):
         mock_st.session_state.get = lambda k, d="": {
-            "api_key": "sk-owner-openai-key",
+            "api_key_token": "encrypted-openai-owner-token",
             "api_provider": "OpenAI",
         }.get(k, d)
 
@@ -50,9 +99,10 @@ class TestIsOwnerApiKey:
     @patch("app.st")
     @patch("app.OWNER_OPENAI_API_KEY", "sk-owner-openai-key")
     @patch("app.OWNER_ANTHROPIC_API_KEY", "sk-ant-owner-key")
-    def test_matching_anthropic_key(self, mock_st):
+    @patch("session.decrypt_api_key", return_value="sk-ant-owner-key")
+    def test_matching_anthropic_key(self, mock_decrypt, mock_st):
         mock_st.session_state.get = lambda k, d="": {
-            "api_key": "sk-ant-owner-key",
+            "api_key_token": "encrypted-anthropic-owner-token",
             "api_provider": "Anthropic",
         }.get(k, d)
 
@@ -63,9 +113,10 @@ class TestIsOwnerApiKey:
     @patch("app.st")
     @patch("app.OWNER_OPENAI_API_KEY", "sk-owner-openai-key")
     @patch("app.OWNER_ANTHROPIC_API_KEY", "sk-ant-owner-key")
-    def test_non_matching_key(self, mock_st):
+    @patch("session.decrypt_api_key", return_value="sk-some-other-key")
+    def test_non_matching_key(self, mock_decrypt, mock_st):
         mock_st.session_state.get = lambda k, d="": {
-            "api_key": "sk-some-other-key",
+            "api_key_token": "encrypted-other-token",
             "api_provider": "OpenAI",
         }.get(k, d)
 
@@ -76,9 +127,10 @@ class TestIsOwnerApiKey:
     @patch("app.st")
     @patch("app.OWNER_OPENAI_API_KEY", "sk-owner-openai-key")
     @patch("app.OWNER_ANTHROPIC_API_KEY", "sk-ant-owner-key")
-    def test_empty_api_key(self, mock_st):
+    @patch("session.decrypt_api_key", return_value=None)
+    def test_empty_token(self, mock_decrypt, mock_st):
         mock_st.session_state.get = lambda k, d="": {
-            "api_key": "",
+            "api_key_token": "",
             "api_provider": "OpenAI",
         }.get(k, d)
 
@@ -89,9 +141,10 @@ class TestIsOwnerApiKey:
     @patch("app.st")
     @patch("app.OWNER_OPENAI_API_KEY", "")
     @patch("app.OWNER_ANTHROPIC_API_KEY", "")
-    def test_no_owner_keys_configured(self, mock_st):
+    @patch("session.decrypt_api_key", return_value="sk-some-key")
+    def test_no_owner_keys_configured(self, mock_decrypt, mock_st):
         mock_st.session_state.get = lambda k, d="": {
-            "api_key": "sk-some-key",
+            "api_key_token": "encrypted-token",
             "api_provider": "OpenAI",
         }.get(k, d)
 

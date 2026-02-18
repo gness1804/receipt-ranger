@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "receipt-ranger"
-version = "0.6.4"
+version = "0.7.0"
 description = "Receipt scanner that extracts structured data from receipt images using BAML and LLMs"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -19,7 +19,9 @@ classifiers = [
 
 dependencies = [
     "baml-py>=0.218.0",
+    "cryptography>=41.0.0",
     "gspread>=5.12.4",
+    "streamlit-cookies-controller>=0.0.4",
     "python-dotenv>=1.0.0",
     "streamlit>=1.32.0",
 ]
