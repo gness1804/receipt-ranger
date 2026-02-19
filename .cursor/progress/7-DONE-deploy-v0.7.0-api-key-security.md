@@ -88,3 +88,5 @@ git checkout ccb243a && sudo systemctl restart receipt-ranger
 - The `SESSION_SECRET` only needs to be set once. A random key is auto-generated if it's missing (fine for local dev), but production needs a stable key for cookies to survive server restarts.
 - Cookies expire after 7 days — users are prompted to re-enter their key after that.
 - No database or migration changes; this is a pure in-memory + cookie change.
+
+<!-- DONE -->
