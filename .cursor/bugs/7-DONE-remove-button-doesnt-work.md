@@ -18,4 +18,6 @@ Same for the Clear All button.
 
 
 - When there is a receipt selected and I click Remove, it should remove that receipt.
-- When there is a receipt selected or multiple receipts selected and I click Clear All, it should remove all of them. 
+- When there is a receipt selected or multiple receipts selected and I click Clear All, it should remove all of them.
+
+<!-- DONE -->

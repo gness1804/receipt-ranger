@@ -59,6 +59,12 @@ def init_session_state():
     """Initialize session state variables."""
     if "uploaded_files" not in st.session_state:
         st.session_state.uploaded_files = {}
+    if "removed_files" not in st.session_state:
+        st.session_state.removed_files = set()
+    if "current_upload_names" not in st.session_state:
+        st.session_state.current_upload_names = set()
+    if "uploader_key" not in st.session_state:
+        st.session_state.uploader_key = 0
     if "processing_results" not in st.session_state:
         st.session_state.processing_results = []
     if "processing_complete" not in st.session_state:
@@ -77,11 +83,16 @@ def remove_file(filename: str):
     """Remove a file from the upload queue."""
     if filename in st.session_state.uploaded_files:
         del st.session_state.uploaded_files[filename]
+    st.session_state.removed_files.add(filename)
+    reset_processing()
 
 
 def clear_all_files():
     """Clear all uploaded files."""
     st.session_state.uploaded_files = {}
+    st.session_state.removed_files = set()
+    st.session_state.current_upload_names = set()
+    st.session_state.uploader_key += 1
     st.session_state.processing_results = []
     st.session_state.processing_complete = False
     st.session_state.duplicates_found = []
@@ -387,17 +398,33 @@ def render_file_upload():
     """Render the file upload section."""
     st.subheader("📤 Upload Receipts")
 
+    st.markdown(
+        """
+        <style>
+        [data-testid="stFileUploader"] ul { display: none !important; }
+        [data-testid="stFileUploader"] li { display: none !important; }
+        [data-testid="stFileUploader"] [data-testid="stFileUploaderFile"] {
+            display: none !important;
+        }
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
+
     uploaded = st.file_uploader(
         "Drop receipt images here",
         type=SUPPORTED_TYPES,
         accept_multiple_files=True,
-        key="file_uploader",
+        key=f"file_uploader_{st.session_state.uploader_key}",
         help="Supported formats: JPG, PNG, GIF, BMP, WebP, TIFF",
     )
 
     # Process newly uploaded files
     if uploaded:
+        st.session_state.current_upload_names = {f.name for f in uploaded}
         for file in uploaded:
+            if file.name in st.session_state.removed_files:
+                continue
             if file.name not in st.session_state.uploaded_files:
                 mime_type = get_mime_type(file.name)
                 if mime_type:
@@ -406,6 +433,8 @@ def render_file_upload():
                         mime_type,
                     )
                     reset_processing()
+    else:
+        st.session_state.current_upload_names = set()
 
 
 def render_file_preview():
