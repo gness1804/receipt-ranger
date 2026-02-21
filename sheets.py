@@ -4,7 +4,22 @@ Handles all interactions with Google Sheets.
 
 import gspread
 import os
+from datetime import datetime as _datetime
 from typing import Dict, Any
+
+
+def _format_date_for_sheets(date_str: str) -> str:
+    """Format a date string as M/D/YYYY without leading zeros for Google Sheets."""
+    if not date_str:
+        return date_str
+    for fmt in ("%m/%d/%Y", "%Y-%m-%d", "%m/%d/%y"):
+        try:
+            parsed = _datetime.strptime(date_str, fmt)
+            return f"{parsed.month}/{parsed.day}/{parsed.year}"
+        except ValueError:
+            continue
+    return date_str
+
 
 # Name of the credentials file. This file should be in the project root.
 SERVICE_ACCOUNT_FILE = "service_account.json"
@@ -65,7 +80,9 @@ def get_existing_receipts(worksheet: gspread.Worksheet) -> set:
         vendor = record.get("Vendor")
 
         if date and amount and vendor:
-            existing_receipts.add((str(date), str(amount), str(vendor)))
+            existing_receipts.add(
+                (_format_date_for_sheets(str(date)), str(amount), str(vendor))
+            )
 
     return existing_receipts
 
@@ -80,7 +97,7 @@ def append_receipt(worksheet: gspread.Worksheet, receipt: Dict[str, Any]):
 
     row = [
         receipt.get("amount"),
-        receipt.get("date"),
+        _format_date_for_sheets(receipt.get("date", "")),
         "",  # Blank column
         receipt.get("vendor"),
         category_str,
@@ -255,7 +272,7 @@ def check_receipts_for_duplicates(
 
     for receipt in receipts:
         receipt_key = (
-            str(receipt.get("date", "")),
+            _format_date_for_sheets(str(receipt.get("date", ""))),
             str(receipt.get("amount", "")),
             str(receipt.get("vendor", "")),
         )
