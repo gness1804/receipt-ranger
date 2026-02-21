@@ -24,3 +24,5 @@ Looking more closely, the exact date format omitted by Receipt Ranger to Google 
 Notice the leading quote marker. I assume this is there to force the spreadsheet to preserve the leading zero. But as noted above, my main spreadsheet (the one where I actually use my receipts data) does not use leading zeros. So that leading quote mark or apostrophe should not be used when Receipt Ranger outputs dates. 
 
 ## Acceptance criteria
+
+<!-- DONE -->
