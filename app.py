@@ -161,6 +161,7 @@ def upload_to_google_sheets(receipts: list[dict]) -> tuple[int, list[str]]:
             get_or_create_worksheet,
             get_existing_receipts,
             append_receipt,
+            _format_date_for_sheets,
         )
     except ImportError:
         return 0, ["gspread library not installed"]
@@ -206,7 +207,7 @@ def upload_to_google_sheets(receipts: list[dict]) -> tuple[int, list[str]]:
         worksheet, existing_receipts = worksheets[worksheet_title]
 
         receipt_key = (
-            str(receipt.get("date")),
+            _format_date_for_sheets(str(receipt.get("date"))),
             str(receipt.get("amount")),
             str(receipt.get("vendor")),
         )

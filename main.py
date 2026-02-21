@@ -590,6 +590,7 @@ def upload_to_sheets(receipts: list[dict]):
             get_or_create_worksheet,
             get_existing_receipts,
             append_receipt,
+            _format_date_for_sheets,
         )
     except ImportError:
         print(
@@ -659,7 +660,7 @@ def upload_to_sheets(receipts: list[dict]):
 
         # Create a unique key for the receipt to check for duplicates
         receipt_key = (
-            str(receipt.get("date")),
+            _format_date_for_sheets(str(receipt.get("date"))),
             str(receipt.get("amount")),
             str(receipt.get("vendor")),
         )
