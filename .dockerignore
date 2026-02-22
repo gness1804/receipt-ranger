@@ -1,0 +1,46 @@
+# Version control
+.git/
+.gitignore
+
+# IDE / AI agent files
+.cursor/
+.ruff_cache/
+.pytest_cache/
+
+# Deployment config (not needed in container)
+deploy/
+
+# Tests and docs
+tests/
+docs/
+tmp/
+
+# Runtime output (ephemeral in container)
+output/
+logs/
+data/
+
+# BAML source files (only the generated client is needed at runtime)
+baml_src/
+
+# Secrets and credentials (injected via env vars in App Runner)
+.env
+baml_src/.env
+service_account.json
+
+# State file (CLI only, not used by web app)
+processed_receipts.json
+
+# Python artifacts
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+dist/
+build/
+
+# Markdown docs (README is not needed inside the container)
+*.md
+AGENTS.md
+GEMINI.md
+CLAUDE.md
