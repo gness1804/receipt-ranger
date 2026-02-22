@@ -1,3 +1,6 @@
+---
+github_issue: 46
+---
 # Handoff: App Runner Migration — Pivot to Streamlit Community Cloud
 
 **Date:** 2026-02-21
