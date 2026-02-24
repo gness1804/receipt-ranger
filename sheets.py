@@ -2,7 +2,9 @@
 Handles all interactions with Google Sheets.
 """
 
+import base64
 import gspread
+import json
 import os
 from datetime import datetime as _datetime
 from typing import Dict, Any
@@ -30,15 +32,23 @@ SPREADSHEET_NAME = "receipt-ranger"
 def get_gspread_client():
     """
     Authenticates with Google Sheets using service account credentials.
+
+    Checks for credentials in the following order:
+    1. GOOGLE_SHEETS_CREDENTIALS env var (base64-encoded JSON) — used in App Runner
+    2. service_account.json file on disk — used in local development
     """
+    credentials_b64 = os.environ.get("GOOGLE_SHEETS_CREDENTIALS", "")
+    if credentials_b64:
+        credentials_dict = json.loads(base64.b64decode(credentials_b64))
+        return gspread.service_account_from_dict(credentials_dict)
+
     if not os.path.exists(SERVICE_ACCOUNT_FILE):
         raise FileNotFoundError(
             f"Service account credentials file not found at: {SERVICE_ACCOUNT_FILE}. "
             f"Please follow the setup instructions in README.md."
         )
 
-    gc = gspread.service_account(filename=SERVICE_ACCOUNT_FILE)
-    return gc
+    return gspread.service_account(filename=SERVICE_ACCOUNT_FILE)
 
 
 def get_or_create_worksheet(client: gspread.Client, sheet_name: str):

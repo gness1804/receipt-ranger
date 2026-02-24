@@ -2,7 +2,7 @@
 # Generated from pyproject.toml
 
 # Core dependencies
-baml-py>=0.218.0
+baml-py==0.218.0
 pydantic>=2.0.0
 gspread>=5.12.4
 streamlit>=1.32.0
@@ -10,3 +10,12 @@ streamlit>=1.32.0
 # Required by gspread for Google Sheets authentication
 google-auth>=2.0.0
 google-auth-oauthlib>=1.0.0
+
+# API key encryption (session cookies)
+cryptography>=41.0.0
+
+# Cookie-based session persistence
+streamlit-cookies-controller>=0.0.4
+
+# Environment variable loading
+python-dotenv>=1.0.0
