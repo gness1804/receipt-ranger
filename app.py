@@ -134,12 +134,8 @@ def set_api_key_env():
 def check_google_sheets_setup() -> tuple[bool, str]:
     """Check if Google Sheets is properly configured."""
     try:
-        from sheets import get_gspread_client, SERVICE_ACCOUNT_FILE
+        from sheets import get_gspread_client
 
-        if not os.path.exists(SERVICE_ACCOUNT_FILE):
-            return False, f"Service account file not found: {SERVICE_ACCOUNT_FILE}"
-
-        # Try to authenticate
         get_gspread_client()
         return True, "Google Sheets configured successfully"
     except ImportError:
