@@ -18,6 +18,16 @@ st.set_page_config(
     initial_sidebar_state="collapsed",
 )
 
+# Sync Streamlit Cloud secrets into os.environ so all modules that use
+# os.environ.get() work in both local (.env) and Streamlit Cloud (st.secrets)
+# contexts without modification.
+try:
+    for _k, _v in st.secrets.items():
+        if isinstance(_v, str):
+            os.environ.setdefault(_k, _v)
+except Exception:
+    pass
+
 import main  # noqa: E402
 from main import (  # noqa: E402
     MIME_TYPES,
