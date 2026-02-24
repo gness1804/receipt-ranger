@@ -19,3 +19,5 @@ Currently, the application runs in an EC2 instance on AWS. This is cumbersome to
 - The application will be much easier to maintain on AppRunner. 
 - The new setup should be modeled on the App Runner implementation for ~/Desktop/friendly-advice-columnist. 
 - As with the friendly advice columnist implementation, there should be a deploy script which takes care of deployment and updates to app runner.
+
+<!-- DONE -->

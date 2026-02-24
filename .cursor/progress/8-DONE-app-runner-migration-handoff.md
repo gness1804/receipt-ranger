@@ -103,3 +103,5 @@ GOOGLE_SHEETS_CREDENTIALS = "..."       # Base64-encoded service_account.json:
 - [ ] Delete App Runner service (optional)
 - [ ] Delete ECR repository (optional, small storage cost)
 - [ ] Merge or delete the `refactor/ec2-to-app-runner` branch
+
+<!-- DONE -->
