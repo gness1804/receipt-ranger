@@ -51,6 +51,7 @@ streamlit run app.py
 
 This launches a browser-based UI where you can:
 - Upload one or multiple receipt images
+- Add additional uploads across multiple picker actions (including files that share a filename)
 - Preview and remove images before processing
 - Enter your API key (Fernet-encrypted for the session — never stored as plaintext)
 - Process receipts and view extracted data

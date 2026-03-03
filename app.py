@@ -69,10 +69,6 @@ def init_session_state():
     """Initialize session state variables."""
     if "uploaded_files" not in st.session_state:
         st.session_state.uploaded_files = {}
-    if "removed_files" not in st.session_state:
-        st.session_state.removed_files = set()
-    if "current_upload_names" not in st.session_state:
-        st.session_state.current_upload_names = set()
     if "uploader_key" not in st.session_state:
         st.session_state.uploader_key = 0
     if "processing_results" not in st.session_state:
@@ -93,15 +89,14 @@ def remove_file(filename: str):
     """Remove a file from the upload queue."""
     if filename in st.session_state.uploaded_files:
         del st.session_state.uploaded_files[filename]
-    st.session_state.removed_files.add(filename)
+    # Reset the uploader widget so Streamlit doesn't re-emit removed files.
+    st.session_state.uploader_key += 1
     reset_processing()
 
 
 def clear_all_files():
     """Clear all uploaded files."""
     st.session_state.uploaded_files = {}
-    st.session_state.removed_files = set()
-    st.session_state.current_upload_names = set()
     st.session_state.uploader_key += 1
     st.session_state.processing_results = []
     st.session_state.processing_complete = False
@@ -113,6 +108,28 @@ def reset_processing():
     st.session_state.processing_results = []
     st.session_state.processing_complete = False
     st.session_state.duplicates_found = []
+
+
+def queue_uploaded_file(filename: str, file_bytes: bytes, mime_type: str) -> bool:
+    """Queue an uploaded file with collision-safe naming.
+
+    Returns:
+        True when a new file was queued, False when it was an exact duplicate.
+    """
+    # Skip exact duplicate content already in the queue.
+    for existing_bytes, _ in st.session_state.uploaded_files.values():
+        if existing_bytes == file_bytes:
+            return False
+
+    base, ext = os.path.splitext(filename)
+    candidate = filename
+    suffix = 2
+    while candidate in st.session_state.uploaded_files:
+        candidate = f"{base} ({suffix}){ext}"
+        suffix += 1
+
+    st.session_state.uploaded_files[candidate] = (file_bytes, mime_type)
+    return True
 
 
 def set_api_key_env():
@@ -427,21 +444,18 @@ def render_file_upload():
     )
 
     # Process newly uploaded files
+    any_added = False
     if uploaded:
-        st.session_state.current_upload_names = {f.name for f in uploaded}
         for file in uploaded:
-            if file.name in st.session_state.removed_files:
+            mime_type = get_mime_type(file.name)
+            if not mime_type:
                 continue
-            if file.name not in st.session_state.uploaded_files:
-                mime_type = get_mime_type(file.name)
-                if mime_type:
-                    st.session_state.uploaded_files[file.name] = (
-                        file.getvalue(),
-                        mime_type,
-                    )
-                    reset_processing()
-    else:
-        st.session_state.current_upload_names = set()
+            any_added = (
+                queue_uploaded_file(file.name, file.getvalue(), mime_type) or any_added
+            )
+
+    if any_added:
+        reset_processing()
 
 
 def render_file_preview():

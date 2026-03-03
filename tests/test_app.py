@@ -281,6 +281,35 @@ class TestProcessReceipts:
         assert "Processing error" in results[0]["validationError"]
 
 
+class TestUploadQueueing:
+    @patch("app.st")
+    def test_same_filename_different_content_gets_unique_name(self, mock_st):
+        mock_st.session_state.uploaded_files = {}
+
+        from app import queue_uploaded_file
+
+        added_first = queue_uploaded_file("receipt.jpg", b"first", "image/jpeg")
+        added_second = queue_uploaded_file("receipt.jpg", b"second", "image/jpeg")
+
+        assert added_first is True
+        assert added_second is True
+        assert "receipt.jpg" in mock_st.session_state.uploaded_files
+        assert "receipt (2).jpg" in mock_st.session_state.uploaded_files
+
+    @patch("app.st")
+    def test_exact_duplicate_content_is_ignored(self, mock_st):
+        mock_st.session_state.uploaded_files = {}
+
+        from app import queue_uploaded_file
+
+        added_first = queue_uploaded_file("receipt.jpg", b"same", "image/jpeg")
+        added_second = queue_uploaded_file("other-name.jpg", b"same", "image/jpeg")
+
+        assert added_first is True
+        assert added_second is False
+        assert len(mock_st.session_state.uploaded_files) == 1
+
+
 class TestCheckForDuplicates:
     @patch("sheets.get_gspread_client")
     @patch("sheets.check_receipts_for_duplicates")
