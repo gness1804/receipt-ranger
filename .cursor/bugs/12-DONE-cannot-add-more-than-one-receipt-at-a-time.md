@@ -12,3 +12,5 @@ github_issue: 50
 When you try to add more than one receipt at a time, it doesn't add the second receipt. It just keeps the first receipt there. 
 
 ## Acceptance criteria
+
+<!-- DONE -->

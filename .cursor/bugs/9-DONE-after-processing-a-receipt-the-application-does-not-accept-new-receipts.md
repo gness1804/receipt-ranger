@@ -13,5 +13,6 @@ After successfully processing a receipt, when you try to add another receipt ima
 
 ## Acceptance criteria:
 
-- After processing a receipt successfully, the application will be able to process new receipts successfully without a page refresh. 
+- After processing a receipt successfully, the application will be able to process new receipts successfully without a page refresh.
 
+<!-- DONE -->
