@@ -2,6 +2,10 @@
 
 A receipt scanner that extracts structured data from receipt images using LLM-powered analysis via [BAML](https://docs.boundaryml.com/). Outputs results as JSON and Google Sheets-compatible tables.
 
+https://receipt-ranger.com 
+
+<img width="1470" height="710" alt="Receipt Ranger Screenshot" src="https://github.com/user-attachments/assets/d59b6db4-302a-4007-abfb-c2eeb43c7362" />
+
 ## Features
 
 - Scans receipt images and extracts key data (amount, date, vendor, category, payment method)
