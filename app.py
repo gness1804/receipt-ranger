@@ -31,6 +31,7 @@ except Exception:
 import main  # noqa: E402
 from main import (  # noqa: E402
     MIME_TYPES,
+    PromptInjectionError,
     extract_receipt_from_bytes,
     load_exclusion_criteria,
     _filter_excluded_receipts,
@@ -567,6 +568,25 @@ def process_and_display_results(sheets_available: bool):
 
                 results.append(receipt_data)
 
+            except PromptInjectionError as e:
+                st.error(
+                    f"**Security Alert:** Processing halted for `{filename}`. " f"{e}"
+                )
+                results.append(
+                    {
+                        "source_file": filename,
+                        "isValidReceipt": False,
+                        "validationError": f"Blocked: {str(e)}",
+                        "id": "",
+                        "amount": 0.0,
+                        "date": "",
+                        "vendor": "",
+                        "category": [],
+                        "paymentMethod": [],
+                        "excludeFromTable": False,
+                        "exclusionReason": "",
+                    }
+                )
             except Exception as e:
                 results.append(
                     {
@@ -792,7 +812,7 @@ def main_app():
 
     # Footer
     st.divider()
-    st.caption("Receipt Ranger v0.8.1 | Process receipt images with AI")
+    st.caption("Receipt Ranger v0.9.0 | Process receipt images with AI")
 
 
 if __name__ == "__main__":

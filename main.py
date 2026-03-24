@@ -11,6 +11,8 @@ from datetime import datetime
 import baml_py
 
 from baml_client import b
+from validation.detector import PromptInjectionDetector
+from validation.sanitizer import InputSanitizer
 
 # Paths
 RECEIPTS_DIR = os.path.join("data", "receipts")
@@ -89,6 +91,42 @@ def _build_category_lookup() -> dict[str, str]:
 
 
 CATEGORY_LOOKUP = _build_category_lookup()
+
+# Prompt injection validation
+_detector = PromptInjectionDetector()
+_sanitizer = InputSanitizer(max_input_length=2000)
+BLOCK_SCORE = int(os.environ.get("PROMPT_INJECTION_BLOCK_SCORE", "10"))
+
+
+class PromptInjectionError(Exception):
+    """Raised when input is blocked due to prompt injection risk."""
+
+    def __init__(self, risk_result: dict):
+        self.risk_result = risk_result
+        super().__init__(
+            "Input blocked: content resembles a prompt injection attempt "
+            f"(risk={risk_result['risk_level']}, score={risk_result['score']})"
+        )
+
+
+def validate_and_sanitize_text(text: str) -> str:
+    """Validate text input for prompt injection and sanitize it.
+
+    Args:
+        text: The text to validate (e.g., exclusion criteria).
+
+    Returns:
+        The sanitized text.
+
+    Raises:
+        PromptInjectionError: If the risk score exceeds the block threshold.
+    """
+    risk = _detector.calculate_risk_score(text, block_score=BLOCK_SCORE)
+
+    if risk["should_block"]:
+        raise PromptInjectionError(risk)
+
+    return _sanitizer.sanitize(text)
 
 
 def is_valid_image(filename: str) -> bool:
@@ -409,7 +447,13 @@ def extract_receipt_from_bytes(
 
     Returns:
         Dictionary containing receipt data, including validation status
+
+    Raises:
+        PromptInjectionError: If exclusion_criteria fails injection validation.
     """
+    # Validate and sanitize the exclusion criteria before it reaches the LLM
+    exclusion_criteria = validate_and_sanitize_text(exclusion_criteria)
+
     image = baml_py.Image.from_base64(mime_type, image_data)
     current_date = _get_current_date_str()
 
