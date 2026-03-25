@@ -24,3 +24,5 @@ Streamlit's `stVerticalBlock` flex container inside columns uses a CSS `gap` pro
 ### Fix
 
 Added a targeted CSS override via `st.markdown(unsafe_allow_html=True)` that sets `gap: 0 !important` on `stVerticalBlock` elements within columns inside the API Configuration expander.
+
+<!-- DONE -->
