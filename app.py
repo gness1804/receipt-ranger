@@ -352,6 +352,21 @@ def render_api_key_section(cookie=None):
             """
         )
 
+        # Reduce vertical gaps between elements inside the API
+        # Configuration columns (fixes excessive space around the
+        # success message after entering an API key).
+        st.markdown(
+            """
+            <style>
+            [data-testid="stExpander"] [data-testid="stColumn"]
+                [data-testid="stVerticalBlock"] {
+                gap: 0 !important;
+            }
+            </style>
+            """,
+            unsafe_allow_html=True,
+        )
+
         col1, col2 = st.columns([1, 2])
 
         with col1:
@@ -370,9 +385,6 @@ def render_api_key_section(cookie=None):
                 if st.button("Change API key", key="change_api_key_btn"):
                     st.session_state.api_key_token = ""
                     if cookie is not None:
-                        # Defer cookie.remove() to the next render via the flag.
-                        # Calling cookie.remove() + st.rerun() inline would abort
-                        # this render before the component JS could execute.
                         st.session_state.api_key_clear_pending = True
                     st.rerun()
             else:
@@ -388,9 +400,6 @@ def render_api_key_section(cookie=None):
                     if cookie is not None:
                         cookie.set("rr_session", token, max_age=7 * 24 * 60 * 60)
                         cookie.set("rr_provider", provider, max_age=7 * 24 * 60 * 60)
-                    # Show immediate feedback without waiting for the cookie
-                    # component's async rerun. Don't call st.rerun() here — it
-                    # would abort this render before the component JS executes.
                     masked = mask_api_key(decrypt_api_key(token) or "")
                     st.success(f"✓ API key configured: `{masked}`")
 
@@ -812,7 +821,7 @@ def main_app():
 
     # Footer
     st.divider()
-    st.caption("Receipt Ranger v0.9.0 | Process receipt images with AI")
+    st.caption("Receipt Ranger v0.9.1 | Process receipt images with AI")
 
 
 if __name__ == "__main__":
