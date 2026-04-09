@@ -193,6 +193,7 @@ processed_receipts.json
 output/
 logs/
 .cursor/tmp/
+.cursor/security/
 data/exclusion_criteria.txt
 data/receipts/
 service_account.json
