@@ -1,8 +1,6 @@
 """Tests for Receipt Ranger Streamlit app."""
 
 import os
-import time
-from concurrent.futures import TimeoutError as FuturesTimeoutError
 from unittest.mock import MagicMock, patch
 
 import pytest
