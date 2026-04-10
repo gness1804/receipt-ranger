@@ -547,12 +547,6 @@ def process_and_display_results(sheets_available: bool):
         results = []
         exclusion_criteria = load_exclusion_criteria()
 
-        # We create a fresh single-worker executor for each file so
-        # that a timed-out (but still running) thread does not block
-        # the next file's submission.  shutdown(wait=False) lets the
-        # orphaned thread finish in the background.
-        executor = None
-
         for idx, (filename, (file_bytes, mime_type)) in enumerate(
             st.session_state.uploaded_files.items()
         ):
@@ -563,6 +557,7 @@ def process_and_display_results(sheets_available: bool):
                 f"**Processing {idx + 1} of {num_files}:** `{filename}`"
             )
 
+            executor = ThreadPoolExecutor(max_workers=1)
             try:
                 # Encode to base64
                 image_data = base64.standard_b64encode(file_bytes).decode("utf-8")
@@ -570,7 +565,6 @@ def process_and_display_results(sheets_available: bool):
                 # Run the LLM call in a thread with a timeout so a
                 # stalled provider cannot block the UI indefinitely.
                 provider = st.session_state.api_provider
-                executor = ThreadPoolExecutor(max_workers=1)
                 future = executor.submit(
                     extract_receipt_from_bytes,
                     image_data,
@@ -593,10 +587,6 @@ def process_and_display_results(sheets_available: bool):
                 results.append(receipt_data)
 
             except FuturesTimeoutError:
-                # Abandon the stalled executor so the next file gets a
-                # fresh thread.
-                executor.shutdown(wait=False, cancel_futures=True)
-                executor = None
                 st.error(
                     f"**Timeout:** Processing `{filename}` took longer "
                     f"than {RECEIPT_PROCESSING_TIMEOUT} seconds and was "
@@ -655,11 +645,10 @@ def process_and_display_results(sheets_available: bool):
                         "exclusionReason": "",
                     }
                 )
-
-        # Allow any orphaned threads to finish in the background
-        # without blocking the UI.
-        if executor is not None:
-            executor.shutdown(wait=False, cancel_futures=True)
+            finally:
+                # Always shut down the executor to prevent orphaned
+                # threads from accumulating across files/requests.
+                executor.shutdown(wait=False, cancel_futures=True)
 
         # Complete progress
         progress_bar.progress(1.0)
