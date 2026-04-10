@@ -554,68 +554,6 @@ class TestReceiptProcessingTimeout:
         assert results[1]["vendor"] == "Fast Store"
 
 
-class TestStartupTimeout:
-    """Tests for the startup watchdog helpers."""
-
-    @patch("app.st")
-    def test_inject_startup_timeout_renders_script(self, mock_st):
-        """The startup watchdog should inject a <script> tag."""
-        from app import APP_STARTUP_TIMEOUT, _inject_startup_timeout
-
-        _inject_startup_timeout()
-
-        mock_st.markdown.assert_called_once()
-        call_args = mock_st.markdown.call_args
-        html_content = call_args[0][0]
-        assert "<script>" in html_content
-        assert "rr-app-loaded" in html_content
-        assert str(APP_STARTUP_TIMEOUT) in html_content
-        assert call_args[1]["unsafe_allow_html"] is True
-
-    @patch("app.st")
-    def test_inject_startup_sentinel_renders_hidden_div(self, mock_st):
-        """The sentinel should be a hidden div with the expected id."""
-        from app import _inject_startup_sentinel
-
-        _inject_startup_sentinel()
-
-        mock_st.markdown.assert_called_once()
-        call_args = mock_st.markdown.call_args
-        html_content = call_args[0][0]
-        assert 'id="rr-app-loaded"' in html_content
-        assert "display:none" in html_content
-
-    @patch("app.st")
-    def test_watchdog_and_sentinel_use_same_element_id(self, mock_st):
-        """The watchdog script and the sentinel must reference the same
-        element ID, otherwise the watchdog can never be cancelled."""
-        from app import _inject_startup_sentinel, _inject_startup_timeout
-
-        _inject_startup_timeout()
-        watchdog_html = mock_st.markdown.call_args[0][0]
-
-        mock_st.reset_mock()
-
-        _inject_startup_sentinel()
-        sentinel_html = mock_st.markdown.call_args[0][0]
-
-        sentinel_id = "rr-app-loaded"
-        assert sentinel_id in watchdog_html
-        assert sentinel_id in sentinel_html
-
-    @patch("app.st")
-    def test_watchdog_uses_session_storage_guard(self, mock_st):
-        """The watchdog should check sessionStorage to avoid firing on
-        Streamlit rerenders after a successful initial load."""
-        from app import _inject_startup_timeout
-
-        _inject_startup_timeout()
-
-        html_content = mock_st.markdown.call_args[0][0]
-        assert "sessionStorage" in html_content
-        assert "rr_loaded" in html_content
-
-
 class TestSheetsIntegration:
     """Tests for sheets.py duplicate checking functions."""
 

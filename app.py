@@ -46,8 +46,6 @@ OWNER_ANTHROPIC_API_KEY = os.environ.get("OWNER_ANTHROPIC_API_KEY", "")
 
 # Timeout (in seconds) for a single LLM receipt-processing call.
 RECEIPT_PROCESSING_TIMEOUT = 60
-# Timeout (in seconds) for the entire app startup / initialisation phase.
-APP_STARTUP_TIMEOUT = 15
 
 
 def is_owner_api_key() -> bool:
@@ -817,109 +815,11 @@ def render_download_section(receipts: list[dict]):
         )
 
 
-def _inject_startup_timeout():
-    """Inject a client-side watchdog that shows an error if the app
-    doesn't finish rendering within APP_STARTUP_TIMEOUT seconds.
-
-    How it works:
-    - A JS timer starts when this snippet is sent to the browser.
-    - When main_app() finishes, it renders a hidden sentinel element
-      with id="rr-app-loaded".
-    - The timer checks for that sentinel; if it's missing when the
-      timer fires, the page is replaced with a friendly error message.
-
-    Guard against false fires on Streamlit rerenders:
-    - Once the app has loaded successfully, sessionStorage stores a
-      flag ("rr_loaded"). On subsequent rerenders (button clicks,
-      file uploads, etc.) the watchdog is skipped entirely.
-    - The flag is cleared on a full page refresh (sessionStorage
-      persists only for the browser tab lifetime), so the watchdog
-      still protects against startup hangs after a refresh.
-    - A duplicate-overlay guard prevents multiple overlays if the
-      timer fires more than once.
-    """
-    st.markdown(
-        f"""
-        <script>
-        (function() {{
-            // Skip the watchdog on Streamlit rerenders — only run on
-            // the initial page load for this tab session.
-            if (sessionStorage.getItem('rr_loaded')) return;
-
-            // Cancel any previously set watchdog timer (e.g. from a
-            // rapid rerender before the first timer fires).
-            if (window.__rrStartupTimerId) {{
-                clearTimeout(window.__rrStartupTimerId);
-            }}
-
-            var timeout = {APP_STARTUP_TIMEOUT} * 1000;
-            window.__rrStartupTimerId = setTimeout(function() {{
-                if (!document.getElementById('rr-app-loaded')
-                        && !document.getElementById('rr-startup-error')) {{
-                    var el = document.createElement('div');
-                    el.id = 'rr-startup-error';
-                    el.style.cssText =
-                        'position:fixed;inset:0;z-index:999999;'
-                        + 'display:flex;align-items:center;'
-                        + 'justify-content:center;'
-                        + 'background:#fff;font-family:sans-serif;'
-                        + 'text-align:center;padding:2rem;';
-                    el.innerHTML =
-                        '<div>'
-                        + '<h2 style="margin-bottom:0.5rem;">'
-                        + '&#9888;&#65039; Receipt Ranger failed to load'
-                        + '</h2>'
-                        + '<p style="color:#555;max-width:28rem;">'
-                        + 'The application did not respond within '
-                        + '{APP_STARTUP_TIMEOUT} seconds. '
-                        + 'This may be a temporary issue &mdash; '
-                        + 'please refresh the page or try again later.'
-                        + '</p>'
-                        + '<button onclick="location.reload()" '
-                        + 'style="margin-top:1rem;padding:0.5rem 1.5rem;'
-                        + 'font-size:1rem;cursor:pointer;border:1px solid '
-                        + '#ccc;border-radius:4px;background:#f0f0f0;">'
-                        + 'Refresh'
-                        + '</button>'
-                        + '</div>';
-                    document.body.appendChild(el);
-                }}
-            }}, timeout);
-
-            // If the sentinel appears before the timer fires, cancel it
-            // and mark the session so rerenders skip the watchdog.
-            var observer = new MutationObserver(function() {{
-                if (document.getElementById('rr-app-loaded')) {{
-                    clearTimeout(window.__rrStartupTimerId);
-                    sessionStorage.setItem('rr_loaded', '1');
-                    observer.disconnect();
-                }}
-            }});
-            observer.observe(document.body, {{childList: true, subtree: true}});
-        }})();
-        </script>
-        """,
-        unsafe_allow_html=True,
-    )
-
-
-def _inject_startup_sentinel():
-    """Render a hidden sentinel element that signals the app loaded OK."""
-    st.markdown(
-        '<div id="rr-app-loaded" style="display:none;"></div>',
-        unsafe_allow_html=True,
-    )
-
-
 def main_app():
     """Main application entry point."""
     from streamlit_cookies_controller import CookieController
 
     init_session_state()
-
-    # Start the client-side startup watchdog immediately, before any
-    # potentially blocking initialisation calls.
-    _inject_startup_timeout()
 
     # Cookie-based session persistence (mirrors FAC's 7-day session cookie)
     cookie = CookieController()
@@ -966,9 +866,6 @@ def main_app():
         ]
         if valid_receipts:
             render_download_section(valid_receipts)
-
-    # Signal to the client-side watchdog that the app loaded successfully.
-    _inject_startup_sentinel()
 
     # Footer
     st.divider()
