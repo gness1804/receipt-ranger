@@ -2,6 +2,7 @@
 
 import base64
 import os
+from concurrent.futures import ThreadPoolExecutor, TimeoutError as FuturesTimeoutError
 
 from dotenv import load_dotenv
 
@@ -42,6 +43,9 @@ SUPPORTED_TYPES = ["jpg", "jpeg", "png", "gif", "bmp", "webp", "tiff"]
 GOOGLE_SHEETS_ENABLED = os.environ.get("ENABLE_GOOGLE_SHEETS", "true").lower() == "true"
 OWNER_OPENAI_API_KEY = os.environ.get("OWNER_OPENAI_API_KEY", "")
 OWNER_ANTHROPIC_API_KEY = os.environ.get("OWNER_ANTHROPIC_API_KEY", "")
+
+# Timeout (in seconds) for a single LLM receipt-processing call.
+RECEIPT_PROCESSING_TIMEOUT = 60
 
 
 def is_owner_api_key() -> bool:
@@ -565,17 +569,22 @@ def process_and_display_results(sheets_available: bool):
                 f"**Processing {idx + 1} of {num_files}:** `{filename}`"
             )
 
+            executor = ThreadPoolExecutor(max_workers=1)
             try:
                 # Encode to base64
                 image_data = base64.standard_b64encode(file_bytes).decode("utf-8")
 
-                # Extract receipt data using the selected provider
-                receipt_data = extract_receipt_from_bytes(
+                # Run the LLM call in a thread with a timeout so a
+                # stalled provider cannot block the UI indefinitely.
+                provider = st.session_state.api_provider
+                future = executor.submit(
+                    extract_receipt_from_bytes,
                     image_data,
                     mime_type,
                     exclusion_criteria,
-                    provider=st.session_state.api_provider,
+                    provider=provider,
                 )
+                receipt_data = future.result(timeout=RECEIPT_PROCESSING_TIMEOUT)
 
                 # Add source info
                 receipt_data["source_file"] = filename
@@ -589,6 +598,30 @@ def process_and_display_results(sheets_available: bool):
 
                 results.append(receipt_data)
 
+            except FuturesTimeoutError:
+                st.error(
+                    f"**Timeout:** Processing `{filename}` took longer "
+                    f"than {RECEIPT_PROCESSING_TIMEOUT} seconds and was "
+                    f"cancelled. The LLM provider may be experiencing "
+                    f"issues — please try again later."
+                )
+                results.append(
+                    {
+                        "source_file": filename,
+                        "isValidReceipt": False,
+                        "validationError": (
+                            f"Timed out after " f"{RECEIPT_PROCESSING_TIMEOUT}s"
+                        ),
+                        "id": "",
+                        "amount": 0.0,
+                        "date": "",
+                        "vendor": "",
+                        "category": [],
+                        "paymentMethod": [],
+                        "excludeFromTable": False,
+                        "exclusionReason": "",
+                    }
+                )
             except PromptInjectionError as e:
                 st.error(
                     f"**Security Alert:** Processing halted for `{filename}`. " f"{e}"
@@ -624,6 +657,10 @@ def process_and_display_results(sheets_available: bool):
                         "exclusionReason": "",
                     }
                 )
+            finally:
+                # Always shut down the executor to prevent orphaned
+                # threads from accumulating across files/requests.
+                executor.shutdown(wait=False, cancel_futures=True)
 
         # Complete progress
         progress_bar.progress(1.0)

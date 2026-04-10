@@ -417,6 +417,143 @@ class TestUploadToGoogleSheets:
         assert "authenticate" in errors[0].lower()
 
 
+class TestReceiptProcessingTimeout:
+    """Tests for the 60-second LLM call timeout in process_and_display_results."""
+
+    @patch("app.RECEIPT_PROCESSING_TIMEOUT", 0.1)
+    @patch("app.st")
+    @patch("app.load_exclusion_criteria", return_value="No exclusion criteria.")
+    @patch("app.extract_receipt_from_bytes")
+    def test_timeout_produces_error_result(self, mock_extract, mock_exc, mock_st):
+        """When the LLM call exceeds RECEIPT_PROCESSING_TIMEOUT, the result
+        should contain a timeout validation error instead of hanging."""
+        # Use an Event to block the thread minimally — just long enough
+        # to exceed the 0.1 s timeout, then release immediately.
+        import threading
+
+        event = threading.Event()
+
+        def slow_extract(*args, **kwargs):
+            event.wait(timeout=2)
+            return {}
+
+        mock_extract.side_effect = slow_extract
+
+        mock_st.session_state = MagicMock()
+        mock_st.session_state.uploaded_files = {
+            "slow.jpg": (b"fake", "image/jpeg"),
+        }
+        mock_st.session_state.api_provider = "OpenAI"
+        mock_st.session_state.processing_results = []
+        mock_st.session_state.processing_complete = False
+
+        from app import process_and_display_results
+
+        process_and_display_results(sheets_available=False)
+
+        # Unblock the orphaned thread so it cleans up quickly.
+        event.set()
+
+        results = mock_st.session_state.processing_results
+        assert len(results) == 1
+        assert results[0]["isValidReceipt"] is False
+        assert "Timed out" in results[0]["validationError"]
+
+    @patch("app.st")
+    @patch("app.load_exclusion_criteria", return_value="No exclusion criteria.")
+    @patch("app.extract_receipt_from_bytes")
+    def test_fast_call_succeeds_normally(self, mock_extract, mock_exc, mock_st):
+        """A fast LLM response should not be affected by the timeout."""
+        mock_extract.return_value = {
+            "isValidReceipt": True,
+            "validationError": "",
+            "id": "r1",
+            "amount": 10.0,
+            "date": "01/01/2026",
+            "vendor": "Quick Store",
+            "category": ["Food & Restaurants"],
+            "paymentMethod": ["Card"],
+            "excludeFromTable": False,
+            "exclusionReason": "",
+        }
+
+        mock_st.session_state = MagicMock()
+        mock_st.session_state.uploaded_files = {
+            "fast.jpg": (b"fake", "image/jpeg"),
+        }
+        mock_st.session_state.api_provider = "Anthropic"
+        mock_st.session_state.processing_results = []
+        mock_st.session_state.processing_complete = False
+        mock_st.session_state.duplicates_found = []
+
+        from app import process_and_display_results
+
+        process_and_display_results(sheets_available=False)
+
+        results = mock_st.session_state.processing_results
+        assert len(results) == 1
+        assert results[0]["isValidReceipt"] is True
+        assert results[0]["vendor"] == "Quick Store"
+
+    @patch("app.RECEIPT_PROCESSING_TIMEOUT", 0.1)
+    @patch("app.st")
+    @patch("app.load_exclusion_criteria", return_value="No exclusion criteria.")
+    @patch("app.extract_receipt_from_bytes")
+    def test_timeout_on_first_file_does_not_block_second(
+        self, mock_extract, mock_exc, mock_st
+    ):
+        """When the first file times out, the second should still be processed
+        without waiting for the stalled thread to finish."""
+        import threading
+
+        event = threading.Event()
+        call_count = 0
+
+        def mixed_extract(*args, **kwargs):
+            nonlocal call_count
+            call_count += 1
+            if call_count == 1:
+                # First call: block (will be timed out)
+                event.wait(timeout=2)
+                return {}
+            # Second call: return immediately
+            return {
+                "isValidReceipt": True,
+                "validationError": "",
+                "id": "r2",
+                "amount": 5.0,
+                "date": "02/02/2026",
+                "vendor": "Fast Store",
+                "category": [],
+                "paymentMethod": [],
+                "excludeFromTable": False,
+                "exclusionReason": "",
+            }
+
+        mock_extract.side_effect = mixed_extract
+
+        mock_st.session_state = MagicMock()
+        mock_st.session_state.uploaded_files = {
+            "slow.jpg": (b"fake1", "image/jpeg"),
+            "fast.jpg": (b"fake2", "image/jpeg"),
+        }
+        mock_st.session_state.api_provider = "OpenAI"
+        mock_st.session_state.processing_results = []
+        mock_st.session_state.processing_complete = False
+
+        from app import process_and_display_results
+
+        process_and_display_results(sheets_available=False)
+        event.set()
+
+        results = mock_st.session_state.processing_results
+        assert len(results) == 2
+        assert results[0]["isValidReceipt"] is False
+        assert "Timed out" in results[0]["validationError"]
+        assert results[1]["isValidReceipt"] is True
+        assert results[1]["vendor"] == "Fast Store"
+
+
 class TestSheetsIntegration:
     """Tests for sheets.py duplicate checking functions."""
 
