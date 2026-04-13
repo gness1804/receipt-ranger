@@ -220,3 +220,4 @@ __marimo__/
 
 # Temporary files and folders
 tmp/
+.grepai/
