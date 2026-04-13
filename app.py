@@ -440,20 +440,10 @@ def render_file_upload():
         """
         <style>
         /* Hide native file list rendered by Streamlit's file uploader.
-           We render our own thumbnail grid in render_file_preview(). */
-        [data-testid="stFileUploader"] [data-testid="stFileUploaderFile"] {
-            display: none !important;
-        }
-        [data-testid="stFileUploader"] [data-testid="stFileUploaderFileName"] {
-            display: none !important;
-        }
-        [data-testid="stFileUploader"] [data-testid="stFileUploaderDeleteBtn"] {
-            display: none !important;
-        }
-        [data-testid="stFileUploaderFileList"] {
-            display: none !important;
-        }
-        [data-testid="stFileUploaderFileList"] img {
+           We render our own thumbnail grid in render_file_preview().
+           Uses a structural selector (dropzone ~ *) so it works across
+           Streamlit versions regardless of data-testid renames. */
+        [data-testid="stFileUploadDropzone"] ~ * {
             display: none !important;
         }
         </style>
