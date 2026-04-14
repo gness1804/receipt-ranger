@@ -5,7 +5,7 @@ github_issue: 60
 
 ## Working directory
 
-`~/conductor/workspaces/receipt-ranger/porto`
+`~/conductor/workspaces/receipt-ranger/`
 
 ## Contents
 
