@@ -439,11 +439,11 @@ def render_file_upload():
     st.markdown(
         """
         <style>
-        /* Hide native file list rendered by Streamlit's file uploader.
+        /* Hide native file chips rendered by Streamlit's file uploader.
            We render our own thumbnail grid in render_file_preview().
-           Uses a structural selector (dropzone ~ *) so it works across
-           Streamlit versions regardless of data-testid renames. */
-        [data-testid="stFileUploadDropzone"] ~ * {
+           The chips live inside the dropzone (not as siblings), so we
+           target the chip container directly. */
+        [data-testid="stFileChips"] {
             display: none !important;
         }
         </style>
