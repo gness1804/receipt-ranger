@@ -865,7 +865,7 @@ def main_app():
 
     # Footer
     st.divider()
-    st.caption("Receipt Ranger v0.9.4 | Process receipt images with AI")
+    st.caption("Receipt Ranger v0.9.5 | Process receipt images with AI")
 
 
 if __name__ == "__main__":
