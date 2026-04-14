@@ -472,6 +472,11 @@ def render_file_upload():
 
     if any_added:
         reset_processing()
+        # Reset the uploader widget so it shows "Browse files" again
+        # instead of native file chips. Files are safely stored in
+        # st.session_state.uploaded_files and shown by render_file_preview().
+        st.session_state.uploader_key += 1
+        st.rerun()
 
 
 def render_file_preview():
@@ -860,7 +865,7 @@ def main_app():
 
     # Footer
     st.divider()
-    st.caption("Receipt Ranger v0.9.4 | Process receipt images with AI")
+    st.caption("Receipt Ranger v0.9.5 | Process receipt images with AI")
 
 
 if __name__ == "__main__":
