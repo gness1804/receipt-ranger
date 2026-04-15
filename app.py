@@ -439,11 +439,21 @@ def render_file_upload():
     st.markdown(
         """
         <style>
-        /* Hide native file chips rendered by Streamlit's file uploader.
-           We render our own thumbnail grid in render_file_preview().
-           The chips live inside the dropzone (not as siblings), so we
-           target the chip container directly. */
-        [data-testid="stFileChips"] {
+        /* Hide native file list rendered by Streamlit's file uploader.
+           We render our own thumbnail grid in render_file_preview(). */
+        [data-testid="stFileUploader"] [data-testid="stFileUploaderFile"] {
+            display: none !important;
+        }
+        [data-testid="stFileUploader"] [data-testid="stFileUploaderFileName"] {
+            display: none !important;
+        }
+        [data-testid="stFileUploader"] [data-testid="stFileUploaderDeleteBtn"] {
+            display: none !important;
+        }
+        [data-testid="stFileUploaderFileList"] {
+            display: none !important;
+        }
+        [data-testid="stFileUploaderFileList"] img {
             display: none !important;
         }
         </style>
@@ -472,11 +482,6 @@ def render_file_upload():
 
     if any_added:
         reset_processing()
-        # Reset the uploader widget so it shows "Browse files" again
-        # instead of native file chips. Files are safely stored in
-        # st.session_state.uploaded_files and shown by render_file_preview().
-        st.session_state.uploader_key += 1
-        st.rerun()
 
 
 def render_file_preview():
@@ -865,7 +870,7 @@ def main_app():
 
     # Footer
     st.divider()
-    st.caption("Receipt Ranger v0.9.5 | Process receipt images with AI")
+    st.caption("Receipt Ranger v0.9.6 | Process receipt images with AI")
 
 
 if __name__ == "__main__":
