@@ -16,3 +16,5 @@ I remember specifically hiding the selected image tiles, so I'm not sure why the
 <img width="1436" height="711" alt="Image" src="https://github.com/user-attachments/assets/687701bb-ee7e-466b-a2ab-0947fea5b81f" />
 
 ## Acceptance criteria
+
+<!-- DONE -->

@@ -1,3 +1,6 @@
+---
+github_issue: 63
+---
 # Duplicate Thumbnails Investigation - Handoff
 
 ## Status
