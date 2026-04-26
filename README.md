@@ -196,17 +196,32 @@ If there are new receipts in the `data/receipts` folder, they will be processed 
 
 ## Deployment
 
-Receipt Ranger can be deployed to AWS EC2 for access from any device (including mobile). See [`deploy/README.md`](deploy/README.md) for a comprehensive guide covering:
+Receipt Ranger is deployed on [Render](https://render.com) at https://receipt-ranger.com.
 
-- AWS EC2 instance setup
-- Nginx reverse proxy configuration
-- CloudFlare DNS and SSL setup
-- Security hardening (firewall, fail2ban)
-- Auto-restart with systemd
+### How It's Deployed
 
-The deployed app uses a "bring your own API key" model - users enter their OpenAI/Anthropic keys via the web interface. Keys are Fernet-encrypted immediately on entry and stored only as an opaque token for the duration of the session.
+- **Platform:** Render Web Service (Starter plan, always-on)
+- **Build:** Docker, using the `Dockerfile` in the repo root
+- **Branch:** auto-deploys from `main`
+- **DNS:** Cloudflare CNAMEs for both `receipt-ranger.com` (apex) and `www.receipt-ranger.com` point to the Render service. Both records are set to **DNS only** (grey cloud) — Render manages its own SSL via Let's Encrypt, and Cloudflare's proxy conflicts with it.
 
-Set a stable `SESSION_SECRET` in your environment for production (see Setup below).
+### Environment Variables (set in Render's dashboard)
+
+| Variable | Purpose |
+|---|---|
+| `SESSION_SECRET` | Fernet key for encrypting user API keys at rest |
+| `OWNER_OPENAI_API_KEY` | Owner's OpenAI key (used for owner-only features like Sheets integration) |
+| `OWNER_ANTHROPIC_API_KEY` | Owner's Anthropic key (same purpose) |
+| `ENABLE_GOOGLE_SHEETS` | `true` to enable Sheets export |
+| `GOOGLE_SHEETS_CREDENTIALS` | Base64-encoded service account JSON for Google Sheets |
+
+### App Behavior
+
+The deployed app uses a "bring your own API key" model — users enter their OpenAI/Anthropic keys via the web interface. Keys are Fernet-encrypted immediately on entry and stored only as an opaque token for the session.
+
+### Historical Deployment Notes
+
+The repo previously contained EC2 + nginx setup files in `deploy/` (now historical). A migration to AWS App Runner was attempted but failed because App Runner does not support WebSocket connections, which Streamlit requires.
 
 ## Documentation
 
