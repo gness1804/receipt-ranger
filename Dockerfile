@@ -15,6 +15,9 @@ COPY pyproject.toml .
 # Copy auto-generated BAML client (do not edit manually)
 COPY baml_client/ baml_client/
 
+# Copy validation module (prompt injection detection / sanitization)
+COPY validation/ validation/
+
 # Copy Streamlit configuration
 COPY .streamlit/ .streamlit/
 
