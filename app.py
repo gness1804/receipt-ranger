@@ -19,6 +19,16 @@ st.set_page_config(
     initial_sidebar_state="collapsed",
 )
 
+st.markdown(
+    """
+    <style>
+    #MainMenu {visibility: hidden;}
+    footer {visibility: hidden;}
+    </style>
+    """,
+    unsafe_allow_html=True,
+)
+
 # Sync Streamlit Cloud secrets into os.environ so all modules that use
 # os.environ.get() work in both local (.env) and Streamlit Cloud (st.secrets)
 # contexts without modification.
@@ -870,7 +880,7 @@ def main_app():
 
     # Footer
     st.divider()
-    st.caption("Receipt Ranger v0.9.6 | Process receipt images with AI")
+    st.caption("Receipt Ranger v0.10.0 | Process receipt images with AI")
 
 
 if __name__ == "__main__":

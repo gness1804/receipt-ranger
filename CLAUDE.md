@@ -4,9 +4,23 @@ Project-specific instructions for AI agents working on this codebase.
 
 ## Project Overview
 
-Receipt Ranger is a backend receipt scanning application. It processes receipt images through an LLM (via BAML) to extract structured data, then outputs JSON and Google Sheets-compatible TSV tables.
+Receipt Ranger processes receipt images through an LLM (via BAML) to extract structured data and outputs JSON and Google Sheets-compatible TSV tables. It has both a CLI (`main.py`) and a Streamlit web interface (`app.py`).
 
-Current status: **MVP** (backend only, no frontend).
+## Deployment
+
+The app is deployed on **Render** at https://receipt-ranger.com.
+
+- Platform: Render Web Service (Starter plan, always-on, $7/mo)
+- Build: Docker, from the repo's `Dockerfile`
+- Auto-deploys from `main`
+- DNS: Cloudflare CNAMEs (apex + www) → Render, both **DNS only** (grey cloud — Render handles SSL itself; orange cloud breaks SSL/WebSockets)
+- Streamlit branding (top bar, footer, hamburger menu) is hidden via `.streamlit/config.toml` (`hideTopBar = true`, `toolbarMode = "minimal"`) and CSS injection in `app.py`
+
+Required environment variables in Render: `SESSION_SECRET`, `OWNER_OPENAI_API_KEY`, `OWNER_ANTHROPIC_API_KEY`, `ENABLE_GOOGLE_SHEETS`, `GOOGLE_SHEETS_CREDENTIALS` (base64-encoded service account JSON).
+
+**Important constraint:** `baml-py` must be pinned to an exact version in `requirements.txt` (e.g. `baml-py==0.218.0`). BAML enforces an exact match between the runtime and the generator that produced `baml_client/` — `>=` will break in CI/Docker builds.
+
+**Historical:** Previous deployments on AWS EC2 (terminated) and Streamlit Community Cloud (decommissioned in favor of Render). AWS App Runner was attempted but does not support WebSockets, which Streamlit requires.
 
 ## Project Structure
 
