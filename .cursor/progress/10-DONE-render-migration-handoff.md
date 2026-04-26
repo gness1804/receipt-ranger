@@ -151,3 +151,5 @@ These are not blocking and can be done at the user's pace.
 - **Cloudflare DNS-only:** Render handles its own SSL via Let's Encrypt — Cloudflare proxy (orange cloud) will break SSL/WebSockets.
 - **Ephemeral filesystem:** Render's filesystem resets on each deploy/restart. Receipt images are processed in-memory, so this is not an issue for this app.
 - **Port:** The Dockerfile exposes 8501. Render auto-detects this from the `EXPOSE` directive.
+
+<!-- DONE -->
