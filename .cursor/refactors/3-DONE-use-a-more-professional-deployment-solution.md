@@ -14,3 +14,5 @@ Streamlit Community Cloud (SCC) is great for amateurs playing with applications,
 A major pain point in the past has been deploying with Streamlit, however. I do not want to change the whole application to use a different technology than Streamlit. I want to keep Streamlit but not use the Streamlit Community Cloud.  We need to find the right solution, maybe on AWS, that works with Streamlit and this application. Before doing any actual work, we will need to invoke a sub-agent to research different options and to do this rigorously with full knowledge of how the application works. 
 
 ## Acceptance criteria
+
+<!-- DONE -->
