@@ -29,8 +29,8 @@ enableStaticServing = false
 gatherUsageStats = false
 
 [ui]
-# Hide the deploy button
-hideTopBar = false
+# Hide the deploy button and Streamlit top bar branding
+hideTopBar = true
 
 [theme]
 # Use a green primary color instead of red (green = action/go)
