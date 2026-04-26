@@ -2,7 +2,20 @@
   "permissions": {
     "allow": [
       "Bash(ls:*)",
-      "Bash(gh run view:*)"
+      "Bash(gh run view:*)",
+      "Bash(gh issue:*)",
+      "WebFetch(domain:docs.streamlit.io)",
+      "WebFetch(domain:aws.amazon.com)",
+      "WebFetch(domain:render.com)",
+      "WebFetch(domain:fly.io)",
+      "WebFetch(domain:docs.cloud.google.com)",
+      "WebFetch(domain:docs.render.com)",
+      "WebFetch(domain:docs.digitalocean.com)",
+      "WebFetch(domain:azure.microsoft.com)",
+      "WebFetch(domain:discuss.streamlit.io)",
+      "WebFetch(domain:docs.railway.app)",
+      "WebFetch(domain:railway.app)",
+      "WebFetch(domain:blog.streamlit.io)"
     ]
   }
 }
