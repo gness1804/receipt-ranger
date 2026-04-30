@@ -198,6 +198,9 @@ data/exclusion_criteria.txt
 data/receipts/
 service_account.json
 
+# Claude Code runtime artifacts
+.claude/*.lock
+
 # Ruff stuff:
 .ruff_cache/
 
