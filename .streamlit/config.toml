@@ -33,8 +33,11 @@ gatherUsageStats = false
 hideTopBar = true
 
 [theme]
-# Use a green primary color instead of red (green = action/go)
-primaryColor = "#28a745"
-backgroundColor = "#ffffff"
-secondaryBackgroundColor = "#f8f9fa"
-textColor = "#212529"
+# Graham Nessler design system — dark theme is the default canvas.
+# In-app CSS overrides handle the light theme via class on the root.
+base = "dark"
+primaryColor = "#F5F5F5"
+backgroundColor = "#0A0A0A"
+secondaryBackgroundColor = "#171717"
+textColor = "#F5F5F5"
+font = "sans serif"

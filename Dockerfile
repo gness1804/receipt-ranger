@@ -10,6 +10,7 @@ COPY app.py .
 COPY main.py .
 COPY session.py .
 COPY sheets.py .
+COPY design.py .
 COPY pyproject.toml .
 
 # Copy auto-generated BAML client (do not edit manually)
@@ -17,6 +18,9 @@ COPY baml_client/ baml_client/
 
 # Copy validation module (prompt injection detection / sanitization)
 COPY validation/ validation/
+
+# Copy design system assets (logo + CSS overrides)
+COPY assets/ assets/
 
 # Copy Streamlit configuration
 COPY .streamlit/ .streamlit/
