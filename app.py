@@ -426,6 +426,11 @@ def render_sidebar(cookie=None) -> bool:
                 st.success(f"Key configured · `{masked}`")
                 if st.button("Change API key", key="change_api_key_btn"):
                     st.session_state.api_key_token = ""
+                    # Drop any in-flight deferred save so the cookie can't be
+                    # re-written on the next render after the user just asked
+                    # to clear it.
+                    st.session_state.api_key_save_pending_token = None
+                    st.session_state.api_key_save_pending_provider = None
                     if cookie is not None:
                         st.session_state.api_key_clear_pending = True
                     st.rerun()
@@ -872,9 +877,17 @@ def main_app():
     save_token = st.session_state.api_key_save_pending_token
     save_provider = st.session_state.api_key_save_pending_provider
     if save_token:
-        cookie.set("rr_session", save_token, max_age=7 * 24 * 60 * 60)
+        # secure=True keeps the cookie HTTPS-only on production
+        # (receipt-ranger.com is HTTPS via Render). Browsers exempt localhost
+        # from the Secure requirement, so local dev still works.
+        cookie.set("rr_session", save_token, max_age=7 * 24 * 60 * 60, secure=True)
         if save_provider:
-            cookie.set("rr_provider", save_provider, max_age=7 * 24 * 60 * 60)
+            cookie.set(
+                "rr_provider",
+                save_provider,
+                max_age=7 * 24 * 60 * 60,
+                secure=True,
+            )
         st.session_state.api_key_save_pending_token = None
         st.session_state.api_key_save_pending_provider = None
 
