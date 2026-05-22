@@ -50,6 +50,44 @@ class TestSession:
         assert plaintext not in token
 
 
+class TestApiKeyDeferredCookieSave:
+    """Regression tests for issue #72: API key cookie not persisting.
+
+    The cookie-controller iframe needs the current script run to complete
+    so it can write document.cookie. Calling cookie.set() and then
+    st.rerun() in the same run aborts before the iframe flushes, so saves
+    have to be deferred to the next render.
+    """
+
+    def test_init_session_state_seeds_deferred_save_keys(self):
+        """init_session_state must set both deferred-save keys to None.
+
+        Without these defaults, the main_app deferred-save branch raises
+        AttributeError on first render.
+        """
+
+        class FakeSessionState(dict):
+            def __getattr__(self, k):
+                if k in self:
+                    return self[k]
+                raise AttributeError(k)
+
+            def __setattr__(self, k, v):
+                self[k] = v
+
+        fake = FakeSessionState()
+        with patch("app.st") as mock_st:
+            mock_st.session_state = fake
+            from app import init_session_state
+
+            init_session_state()
+
+        assert fake["api_key_save_pending_token"] is None
+        assert fake["api_key_save_pending_provider"] is None
+        assert fake["api_key_token"] == ""
+        assert fake["api_key_clear_pending"] is False
+
+
 class TestGetMimeType:
     def test_jpg_extension(self):
         from app import get_mime_type
