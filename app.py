@@ -98,6 +98,10 @@ def init_session_state():
         st.session_state.api_key_token = ""
     if "api_key_clear_pending" not in st.session_state:
         st.session_state.api_key_clear_pending = False
+    if "api_key_save_pending_token" not in st.session_state:
+        st.session_state.api_key_save_pending_token = None
+    if "api_key_save_pending_provider" not in st.session_state:
+        st.session_state.api_key_save_pending_provider = None
     if "api_provider" not in st.session_state:
         st.session_state.api_provider = "OpenAI"
 
@@ -422,6 +426,11 @@ def render_sidebar(cookie=None) -> bool:
                 st.success(f"Key configured · `{masked}`")
                 if st.button("Change API key", key="change_api_key_btn"):
                     st.session_state.api_key_token = ""
+                    # Drop any in-flight deferred save so the cookie can't be
+                    # re-written on the next render after the user just asked
+                    # to clear it.
+                    st.session_state.api_key_save_pending_token = None
+                    st.session_state.api_key_save_pending_provider = None
                     if cookie is not None:
                         st.session_state.api_key_clear_pending = True
                     st.rerun()
@@ -435,9 +444,15 @@ def render_sidebar(cookie=None) -> bool:
                 if api_key:
                     token = encrypt_api_key(api_key)
                     st.session_state.api_key_token = token
+                    # Defer cookie.set to the next render. Calling cookie.set
+                    # immediately followed by st.rerun() in the same script
+                    # run aborts before the cookie-controller iframe can
+                    # execute document.cookie = ... on the frontend, so the
+                    # browser cookie never gets written and the key fails to
+                    # persist across refreshes.
                     if cookie is not None:
-                        cookie.set("rr_session", token, max_age=7 * 24 * 60 * 60)
-                        cookie.set("rr_provider", provider, max_age=7 * 24 * 60 * 60)
+                        st.session_state.api_key_save_pending_token = token
+                        st.session_state.api_key_save_pending_provider = provider
                     st.rerun()
 
         # Google Sheets status — owner only
@@ -855,7 +870,28 @@ def main_app():
         cookie.remove("rr_provider")
         st.session_state.api_key_clear_pending = False
 
-    if not clear_pending:
+    # Deferred cookie save: the API-key input handler sets these flags and
+    # reruns so that cookie.set() runs here (in a script that completes
+    # without a trailing st.rerun()), letting the iframe actually write
+    # document.cookie before being torn down.
+    save_token = st.session_state.api_key_save_pending_token
+    save_provider = st.session_state.api_key_save_pending_provider
+    if save_token:
+        # secure=True keeps the cookie HTTPS-only on production
+        # (receipt-ranger.com is HTTPS via Render). Browsers exempt localhost
+        # from the Secure requirement, so local dev still works.
+        cookie.set("rr_session", save_token, max_age=7 * 24 * 60 * 60, secure=True)
+        if save_provider:
+            cookie.set(
+                "rr_provider",
+                save_provider,
+                max_age=7 * 24 * 60 * 60,
+                secure=True,
+            )
+        st.session_state.api_key_save_pending_token = None
+        st.session_state.api_key_save_pending_provider = None
+
+    if not clear_pending and not save_token:
         _load_cookie_to_session(cookie)
 
     sheets_available = render_sidebar(cookie)
@@ -878,7 +914,7 @@ def main_app():
     st.markdown(
         (
             '<div class="gn-footer">'
-            'Receipt Ranger · <span class="version">v0.11.0</span> · '
+            'Receipt Ranger · <span class="version">v0.11.1</span> · '
             "Structured data from receipt images."
             "</div>"
         ),
