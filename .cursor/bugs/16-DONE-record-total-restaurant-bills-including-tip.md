@@ -15,3 +15,5 @@ Acceptance criteria
 - When reading a restaurant receipt with the tip, the application will always record the final post-tip amount as the total amount for that receipt.
 
 ## Acceptance criteria
+
+<!-- DONE -->
