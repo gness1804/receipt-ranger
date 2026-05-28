@@ -28,7 +28,7 @@ class Receipt {
     isValidReceipt bool @description("Whether this image is a valid receipt. Set to true only if the image clearly shows a receipt, invoice, or similar purchase document. Set to false for non-receipt images like photos, screenshots, memes, documents, etc.")
     validationError string @description("If isValidReceipt is false, provide a brief explanation of why this is not a valid receipt (e.g., 'Image shows a landscape photo, not a receipt'). If isValidReceipt is true, this should be an empty string.")
     id string @description("For internal reference and programmatic use, would not go into V1 output table.")
-    amount float @description("The total amount of the receipt. Include all tips, taxes, etc. in the amount. If you cannot determine the amount, just put zero.")
+    amount float @description("The final total amount paid on the receipt, inclusive of all tips, taxes, gratuity, and service charges. For restaurant receipts (or any receipt that includes a tip), the amount MUST be the post-tip total, not the printed pre-tip subtotal. If the receipt shows a printed total followed by a handwritten tip and a handwritten final total below it, use the handwritten final total. If a tip is written but no final total is written, add the tip to the printed total yourself. If you cannot determine the amount, just put zero.")
     date string @description("The date of the receipt. Format should be MM/DD/YYYY. If you cannot determine the date, just put an empty string.")
     vendor string @description("The vendor of the receipt. If you cannot determine the vendor, just put an empty string.")
     category ReceiptCategory[] @description("The canonical categories for the receipt. Use only values from ReceiptCategory. If multiple categories are present, list them all. If you can't determine a category, present an empty list.")
@@ -58,6 +58,14 @@ template_string ReceiptExtractionPrompt(image: image, exclusionCriteria: string,
     - Use only ReceiptCategory values for category
     - Today's date is {{ currentDate }}. If the receipt date appears to be after {{ currentDate }}, leave the date field as an empty string
     - If you cannot determine the date, leave it as an empty string. Do not guess.
+
+    AMOUNT RULES (READ CAREFULLY — RESTAURANT RECEIPTS):
+    - The amount field must always be the FINAL post-tip total paid, including tip, tax, gratuity, and any service charges.
+    - Restaurant receipts (and bar/cafe/hotel-dining receipts) very often show a PRINTED total near the top or middle of the receipt, followed by handwritten additions below it: a "Tip" line and a "Total" (or "Grand Total") line filled in by the customer in pen.
+    - In that case you MUST use the handwritten final total, NOT the printed pre-tip subtotal. Look carefully at the bottom of the receipt for handwritten numbers — they override the printed total.
+    - If the receipt shows a handwritten tip but no handwritten final total, compute the final total yourself: printed total + handwritten tip.
+    - If both a printed "Subtotal" and a printed "Total" appear, the printed "Total" is the pre-tip amount on restaurant receipts — keep looking below it for handwritten tip/total entries before settling on a value.
+    - When in doubt between a smaller printed number and a larger handwritten number near the signature line on a restaurant-style receipt, prefer the larger handwritten number.
 
     EXCLUSION CRITERIA (READ CAREFULLY):
     The excludeFromTable field should ONLY be set to true if the receipt matches one of the criteria listed below. If no criteria are listed, or if the receipt does not match any listed criteria, you MUST set excludeFromTable to false.
