@@ -420,6 +420,47 @@ def _get_current_date_str() -> str:
     return datetime.now().strftime("%m/%d/%Y")
 
 
+# Worksheet that holds receipts whose date could not be captured (issue #49).
+UNKNOWN_DATE_WORKSHEET = "Unknown Date"
+
+
+def _resolve_worksheet_for_date(date_str: str) -> tuple[str, str]:
+    """Determine the target worksheet and normalized date for a receipt.
+
+    Receipts with a usable date go to a month worksheet (e.g. "January 2026").
+    Receipts whose date is missing or unparseable are routed to the
+    "Unknown Date" worksheet and given an empty normalized date so they dedupe
+    consistently regardless of any leftover unparseable string.
+
+    Returns:
+        Tuple of (worksheet_title, normalized_date).
+    """
+    parsed = _parse_date(date_str)
+    if not parsed:
+        return UNKNOWN_DATE_WORKSHEET, ""
+    return parsed.strftime("%B %Y"), date_str
+
+
+def _run_baml_extraction(
+    image, exclusion_criteria: str, current_date: str, provider: str
+):
+    """Call the appropriate BAML extraction function for the given provider."""
+    if provider == "OpenAI":
+        return b.ExtractReceiptFromImageOpenAI(image, exclusion_criteria, current_date)
+    return b.ExtractReceiptFromImage(image, exclusion_criteria, current_date)
+
+
+def _validate_extracted_date(date_str: str) -> str:
+    """Return the date, blanking out untrustworthy future dates."""
+    if _is_future_date(date_str):
+        print(
+            f"    WARNING: Future date detected ({date_str}), "
+            "replacing with empty string"
+        )
+        return ""
+    return date_str
+
+
 def extract_receipt(filepath: str, exclusion_criteria: str) -> dict:
     """Run BAML extraction on a receipt image and return the result as a dict."""
     _, ext = os.path.splitext(filepath)
@@ -457,13 +498,7 @@ def extract_receipt_from_bytes(
     image = baml_py.Image.from_base64(mime_type, image_data)
     current_date = _get_current_date_str()
 
-    # Use the appropriate extraction function based on provider
-    if provider == "OpenAI":
-        receipt = b.ExtractReceiptFromImageOpenAI(
-            image, exclusion_criteria, current_date
-        )
-    else:
-        receipt = b.ExtractReceiptFromImage(image, exclusion_criteria, current_date)
+    receipt = _run_baml_extraction(image, exclusion_criteria, current_date, provider)
 
     # Check if the image is a valid receipt
     if not receipt.isValidReceipt:
@@ -481,13 +516,20 @@ def extract_receipt_from_bytes(
         }
 
     # Validate the date - replace future dates with empty string
-    extracted_date = receipt.date
-    if _is_future_date(extracted_date):
-        print(
-            f"    WARNING: Future date detected ({extracted_date}), "
-            "replacing with empty string"
+    extracted_date = _validate_extracted_date(receipt.date or "")
+
+    # Retry once if the date could not be captured (issue #49). Only the date
+    # is taken from the retry; the original extraction's other fields (amount,
+    # vendor, etc.) are kept so a good first read isn't regressed.
+    if not extracted_date:
+        print("    No date captured; retrying extraction once...")
+        retry_receipt = _run_baml_extraction(
+            image, exclusion_criteria, current_date, provider
         )
-        extracted_date = ""
+        if retry_receipt.isValidReceipt:
+            retry_date = _validate_extracted_date(retry_receipt.date or "")
+            if retry_date:
+                extracted_date = retry_date
 
     return {
         "isValidReceipt": True,
@@ -661,30 +703,12 @@ def upload_to_sheets(receipts: list[dict]):
     receipts_to_upload, _ = _filter_excluded_receipts(receipts, print_warnings=False)
 
     for receipt in receipts_to_upload:
-        date_str = receipt.get("date")
-        if not date_str:
-            continue
+        date_str = receipt.get("date") or ""
 
-        try:
-            # Use the existing _parse_date function
-            parsed_date = _parse_date(date_str)
-            if not parsed_date:
-                warning_message = (
-                    f"[Sheets] WARNING: Could not parse date '{date_str}', "
-                    "skipping receipt."
-                )
-                print(warning_message)
-                continue
-
-            # Format: "January 2026"
-            worksheet_title = parsed_date.strftime("%B %Y")
-        except (ValueError, TypeError):
-            warning_message = (
-                f"[Sheets] WARNING: Invalid date format for '{date_str}', "
-                "skipping receipt."
-            )
-            print(warning_message)
-            continue
+        # Receipts with a missing/unparseable date go to the "Unknown Date"
+        # worksheet (issue #49) instead of being skipped, so the user only has
+        # to fill in the date manually rather than re-enter the whole receipt.
+        worksheet_title, normalized_date = _resolve_worksheet_for_date(date_str)
 
         if worksheet_title not in worksheets:
             print(f"[Sheets] Accessing worksheet: '{worksheet_title}'...")
@@ -702,9 +726,11 @@ def upload_to_sheets(receipts: list[dict]):
 
         worksheet, existing_receipts = worksheets[worksheet_title]
 
-        # Create a unique key for the receipt to check for duplicates
+        # Create a unique key for the receipt to check for duplicates. Use the
+        # normalized date so all "Unknown Date" receipts share an empty date
+        # token and dedupe consistently.
         receipt_key = (
-            _format_date_for_sheets(str(receipt.get("date"))),
+            _format_date_for_sheets(normalized_date),
             str(receipt.get("amount")),
             str(receipt.get("vendor")),
         )
@@ -719,6 +745,18 @@ def upload_to_sheets(receipts: list[dict]):
                 print(f"  [Sheets] Added new receipt: {vendor} on {date}")
             except Exception as e:
                 print(f"[Sheets] ERROR: Could not append receipt to worksheet: {e}")
+        elif not normalized_date:
+            # Undated receipts dedupe on (vendor, amount) alone, so a genuinely
+            # distinct purchase can be mistaken for a duplicate. Warn instead of
+            # dropping silently (issue #49).
+            vendor = receipt.get("vendor") or "Unknown vendor"
+            amount = receipt.get("amount") or 0
+            print(
+                f"  [Sheets] NOTE: Skipped an undated receipt matching an "
+                f"existing 'Unknown Date' entry ({vendor}, ${amount:.2f}). "
+                f"If this is a distinct purchase, add it manually — undated "
+                f"receipts with the same vendor and amount can't be told apart."
+            )
 
     print(f"\n[Sheets] Upload complete. Added {new_receipts_count} new receipt(s).")
 

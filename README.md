@@ -186,6 +186,16 @@ The script will:
 - Find or create a worksheet for each month and year (e.g., "January 2026").
 - Check for duplicate receipts (based on Date, Amount, and Vendor) and only add new ones.
 
+#### Receipts with a missing date
+
+If a receipt's date can't be captured (unreadable or absent), Receipt Ranger
+retries the extraction once. If the date still can't be determined, the receipt
+is **not dropped** — it's uploaded to a dedicated **`Unknown Date`** worksheet
+with the date column left blank, so you only need to fill in the date manually
+rather than re-enter the whole receipt. Two undated receipts with the same
+amount and vendor are still deduplicated, while undated receipts never collide
+with dated ones.
+
 You can also process new receipts and upload them in the same run:
 
 ```bash

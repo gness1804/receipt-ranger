@@ -39,3 +39,5 @@ None observed. The application works correctly in production on Render. These ar
 - If a test is found to be testing a code path that no longer exists, the test should be deleted rather than rewritten to test something else
 - Confirm no other tests regress as a result of the changes
 - Note in the PR description what each test was actually testing before vs after, so future readers understand the drift
+
+<!-- DONE -->

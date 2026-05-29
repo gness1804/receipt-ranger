@@ -3,8 +3,6 @@
 import os
 from unittest.mock import MagicMock, patch
 
-import pytest
-
 # Import app at module load time so app.py's top-level load_dotenv() runs during
 # collection (in a normal frame) rather than lazily inside a test function. When
 # the first `from app import ...` happens inside a pytest test frame, dotenv's
@@ -412,10 +410,11 @@ class TestUploadToGoogleSheets:
             }
         ]
 
-        count, errors = upload_to_google_sheets(receipts)
+        count, errors, notices = upload_to_google_sheets(receipts)
 
         assert count == 1
         assert len(errors) == 0
+        assert len(notices) == 0
         mock_append.assert_called_once()
 
     @patch("sheets.get_existing_receipts")
@@ -441,9 +440,44 @@ class TestUploadToGoogleSheets:
             }
         ]
 
-        count, errors = upload_to_google_sheets(receipts)
+        count, errors, notices = upload_to_google_sheets(receipts)
 
         assert count == 0  # Already exists, not uploaded
+        # Dated duplicates are skipped silently (a true duplicate).
+        assert len(notices) == 0
+
+    @patch("sheets.append_receipt")
+    @patch("sheets.get_existing_receipts")
+    @patch("sheets.get_or_create_worksheet")
+    @patch("sheets.get_gspread_client")
+    def test_warns_on_skipped_undated_duplicate(
+        self, mock_client, mock_worksheet, mock_existing, mock_append
+    ):
+        mock_client.return_value = MagicMock()
+        mock_worksheet.return_value = MagicMock()
+        # An undated receipt with this vendor/amount already exists in the
+        # "Unknown Date" tab (empty date token in the key).
+        mock_existing.return_value = {("", "25.5", "Test Store")}
+
+        from app import upload_to_google_sheets
+
+        receipts = [
+            {
+                "date": "",
+                "amount": 25.5,
+                "vendor": "Test Store",
+                "category": [],
+                "excludeFromTable": False,
+            }
+        ]
+
+        count, errors, notices = upload_to_google_sheets(receipts)
+
+        assert count == 0  # Treated as a duplicate, not uploaded
+        assert len(notices) == 1
+        assert "undated receipt" in notices[0].lower()
+        assert "Test Store" in notices[0]
+        mock_append.assert_not_called()
 
     @patch("sheets.get_gspread_client")
     def test_handles_auth_error(self, mock_client):
@@ -460,7 +494,7 @@ class TestUploadToGoogleSheets:
             }
         ]
 
-        count, errors = upload_to_google_sheets(receipts)
+        count, errors, notices = upload_to_google_sheets(receipts)
 
         assert count == 0
         assert len(errors) == 1

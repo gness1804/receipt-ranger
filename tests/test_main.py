@@ -571,3 +571,118 @@ class TestFutureDateValidation:
         assert result["date"] == ""
         captured = capsys.readouterr()
         assert "Future date detected" in captured.out
+
+
+def _make_mock_receipt(**overrides):
+    """Build a mock BAML receipt with sensible defaults for overriding."""
+    receipt = MagicMock()
+    receipt.isValidReceipt = overrides.get("isValidReceipt", True)
+    receipt.validationError = overrides.get("validationError", "")
+    receipt.id = overrides.get("id", "r1")
+    receipt.amount = overrides.get("amount", 25.50)
+    receipt.date = overrides.get("date", "01/20/2026")
+    receipt.vendor = overrides.get("vendor", "Test Store")
+    receipt.category = overrides.get("category", [])
+    receipt.paymentMethod = overrides.get("paymentMethod", ["Card"])
+    receipt.excludeFromTable = overrides.get("excludeFromTable", False)
+    receipt.exclusionReason = overrides.get("exclusionReason", "")
+    return receipt
+
+
+class TestDateRetry:
+    """Tests for the retry-once-on-missing-date behavior (issue #49)."""
+
+    @patch("main.b")
+    def test_no_retry_when_date_present(self, mock_b, tmp_path):
+        img = tmp_path / "receipt.jpg"
+        img.write_bytes(b"fake image bytes")
+        mock_b.ExtractReceiptFromImage.return_value = _make_mock_receipt(
+            date="01/20/2026"
+        )
+
+        result = main.extract_receipt(str(img), "No exclusion criteria.")
+
+        assert result["date"] == "01/20/2026"
+        mock_b.ExtractReceiptFromImage.assert_called_once()
+
+    @patch("main.b")
+    def test_retry_fills_in_date(self, mock_b, tmp_path, capsys):
+        img = tmp_path / "receipt.jpg"
+        img.write_bytes(b"fake image bytes")
+        first = _make_mock_receipt(date="", amount=25.50, vendor="Test Store")
+        retry = _make_mock_receipt(date="02/02/2026", amount=99.99, vendor="Other")
+        mock_b.ExtractReceiptFromImage.side_effect = [first, retry]
+
+        result = main.extract_receipt(str(img), "No exclusion criteria.")
+
+        # The date comes from the retry, but other fields stay from the first
+        # extraction so a good initial read is not regressed.
+        assert result["date"] == "02/02/2026"
+        assert result["amount"] == 25.50
+        assert result["vendor"] == "Test Store"
+        assert mock_b.ExtractReceiptFromImage.call_count == 2
+        assert "retrying extraction once" in capsys.readouterr().out
+
+    @patch("main.b")
+    def test_retry_still_empty_keeps_blank(self, mock_b, tmp_path):
+        img = tmp_path / "receipt.jpg"
+        img.write_bytes(b"fake image bytes")
+        mock_b.ExtractReceiptFromImage.side_effect = [
+            _make_mock_receipt(date="", vendor="Test Store"),
+            _make_mock_receipt(date="", vendor="Test Store"),
+        ]
+
+        result = main.extract_receipt(str(img), "No exclusion criteria.")
+
+        assert result["date"] == ""
+        assert result["vendor"] == "Test Store"
+        assert mock_b.ExtractReceiptFromImage.call_count == 2
+
+    @patch("main.b")
+    def test_retry_invalid_keeps_first_result(self, mock_b, tmp_path):
+        img = tmp_path / "receipt.jpg"
+        img.write_bytes(b"fake image bytes")
+        mock_b.ExtractReceiptFromImage.side_effect = [
+            _make_mock_receipt(date="", amount=12.0, vendor="Test Store"),
+            _make_mock_receipt(isValidReceipt=False, date="03/03/2026"),
+        ]
+
+        result = main.extract_receipt(str(img), "No exclusion criteria.")
+
+        assert result["isValidReceipt"] is True
+        assert result["date"] == ""
+        assert result["amount"] == 12.0
+        assert mock_b.ExtractReceiptFromImage.call_count == 2
+
+    @patch("main.b")
+    def test_future_date_triggers_retry(self, mock_b, tmp_path):
+        img = tmp_path / "receipt.jpg"
+        img.write_bytes(b"fake image bytes")
+        mock_b.ExtractReceiptFromImage.side_effect = [
+            _make_mock_receipt(date="12/31/2099"),  # future -> blanked
+            _make_mock_receipt(date="04/04/2026"),
+        ]
+
+        result = main.extract_receipt(str(img), "No exclusion criteria.")
+
+        assert result["date"] == "04/04/2026"
+        assert mock_b.ExtractReceiptFromImage.call_count == 2
+
+
+class TestResolveWorksheetForDate:
+    """Tests for routing receipts to month vs. "Unknown Date" worksheets."""
+
+    def test_valid_date_routes_to_month(self):
+        title, normalized = main._resolve_worksheet_for_date("01/20/2026")
+        assert title == "January 2026"
+        assert normalized == "01/20/2026"
+
+    def test_empty_date_routes_to_unknown(self):
+        title, normalized = main._resolve_worksheet_for_date("")
+        assert title == "Unknown Date"
+        assert normalized == ""
+
+    def test_unparseable_date_routes_to_unknown(self):
+        title, normalized = main._resolve_worksheet_for_date("not-a-date")
+        assert title == "Unknown Date"
+        assert normalized == ""
