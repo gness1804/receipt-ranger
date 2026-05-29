@@ -224,20 +224,12 @@ def upload_to_google_sheets(receipts: list[dict]) -> tuple[int, list[str]]:
     worksheets = {}
 
     for receipt in receipts_to_upload:
-        date_str = receipt.get("date")
-        if not date_str:
-            continue
+        date_str = receipt.get("date") or ""
 
-        try:
-            parsed_date = main._parse_date(date_str)
-            if not parsed_date:
-                errors.append(f"Could not parse date '{date_str}'")
-                continue
-
-            worksheet_title = parsed_date.strftime("%B %Y")
-        except (ValueError, TypeError):
-            errors.append(f"Invalid date format for '{date_str}'")
-            continue
+        # Receipts with a missing/unparseable date go to the "Unknown Date"
+        # worksheet (issue #49) instead of being skipped, so the user only has
+        # to fill in the date manually rather than re-enter the whole receipt.
+        worksheet_title, normalized_date = main._resolve_worksheet_for_date(date_str)
 
         if worksheet_title not in worksheets:
             try:
@@ -251,7 +243,7 @@ def upload_to_google_sheets(receipts: list[dict]) -> tuple[int, list[str]]:
         worksheet, existing_receipts = worksheets[worksheet_title]
 
         receipt_key = (
-            _format_date_for_sheets(str(receipt.get("date"))),
+            _format_date_for_sheets(normalized_date),
             str(receipt.get("amount")),
             str(receipt.get("vendor")),
         )

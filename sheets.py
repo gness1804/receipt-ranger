@@ -85,11 +85,14 @@ def get_existing_receipts(worksheet: gspread.Worksheet) -> set:
         # "Amount", "Date", "Vendor", "Category".
 
         # To make it more robust, we check if the keys exist.
-        date = record.get("Date")
+        date = record.get("Date") or ""
         amount = record.get("Amount")
         vendor = record.get("Vendor")
 
-        if date and amount and vendor:
+        # Track receipts even when the date is blank (the "Unknown Date"
+        # worksheet, issue #49) so they still dedupe against future uploads.
+        # The empty-string date keeps them distinct from any dated receipt.
+        if amount and vendor:
             existing_receipts.add(
                 (_format_date_for_sheets(str(date)), str(amount), str(vendor))
             )
