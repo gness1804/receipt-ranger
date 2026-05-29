@@ -11,6 +11,7 @@ from datetime import datetime
 import baml_py
 
 from baml_client import b
+from image_conversion import maybe_convert_heic
 from validation.detector import PromptInjectionDetector
 from validation.sanitizer import InputSanitizer
 
@@ -23,7 +24,17 @@ OUTPUT_TSV = os.path.join(OUTPUT_DIR, "receipts.tsv")
 EXCLUSION_CRITERIA_FILE = os.path.join("data", "exclusion_criteria.txt")
 
 # Supported image extensions
-VALID_EXTENSIONS = {".jpg", ".jpeg", ".png", ".gif", ".bmp", ".webp", ".tiff"}
+VALID_EXTENSIONS = {
+    ".jpg",
+    ".jpeg",
+    ".png",
+    ".gif",
+    ".bmp",
+    ".webp",
+    ".tiff",
+    ".heic",
+    ".heif",
+}
 
 # Extension to MIME type mapping
 MIME_TYPES = {
@@ -34,6 +45,8 @@ MIME_TYPES = {
     ".bmp": "image/bmp",
     ".webp": "image/webp",
     ".tiff": "image/tiff",
+    ".heic": "image/heic",
+    ".heif": "image/heif",
 }
 
 CATEGORY_ENUM_TO_LABEL = {
@@ -467,7 +480,13 @@ def extract_receipt(filepath: str, exclusion_criteria: str) -> dict:
     mime_type = MIME_TYPES[ext.lower()]
 
     with open(filepath, "rb") as f:
-        image_data = base64.standard_b64encode(f.read()).decode("utf-8")
+        raw_bytes = f.read()
+
+    # Transparently convert HEIC/HEIF inputs to JPEG so the LLM provider
+    # gets a format it can reliably decode.
+    raw_bytes, mime_type = maybe_convert_heic(raw_bytes, filepath, mime_type)
+
+    image_data = base64.standard_b64encode(raw_bytes).decode("utf-8")
 
     return extract_receipt_from_bytes(image_data, mime_type, exclusion_criteria)
 
