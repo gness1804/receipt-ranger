@@ -745,6 +745,18 @@ def upload_to_sheets(receipts: list[dict]):
                 print(f"  [Sheets] Added new receipt: {vendor} on {date}")
             except Exception as e:
                 print(f"[Sheets] ERROR: Could not append receipt to worksheet: {e}")
+        elif not normalized_date:
+            # Undated receipts dedupe on (vendor, amount) alone, so a genuinely
+            # distinct purchase can be mistaken for a duplicate. Warn instead of
+            # dropping silently (issue #49).
+            vendor = receipt.get("vendor") or "Unknown vendor"
+            amount = receipt.get("amount") or 0
+            print(
+                f"  [Sheets] NOTE: Skipped an undated receipt matching an "
+                f"existing 'Unknown Date' entry ({vendor}, ${amount:.2f}). "
+                f"If this is a distinct purchase, add it manually — undated "
+                f"receipts with the same vendor and amount can't be told apart."
+            )
 
     print(f"\n[Sheets] Upload complete. Added {new_receipts_count} new receipt(s).")
 

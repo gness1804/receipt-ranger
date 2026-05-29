@@ -193,11 +193,12 @@ def check_for_duplicates(receipts: list[dict]) -> list[dict]:
         return []
 
 
-def upload_to_google_sheets(receipts: list[dict]) -> tuple[int, list[str]]:
+def upload_to_google_sheets(receipts: list[dict]) -> tuple[int, list[str], list[str]]:
     """Upload receipts to Google Sheets.
 
     Returns:
-        Tuple of (count of uploaded receipts, list of error messages)
+        Tuple of (count of uploaded receipts, list of error messages,
+        list of advisory notices).
     """
     try:
         from sheets import (
@@ -208,15 +209,16 @@ def upload_to_google_sheets(receipts: list[dict]) -> tuple[int, list[str]]:
             _format_date_for_sheets,
         )
     except ImportError:
-        return 0, ["gspread library not installed"]
+        return 0, ["gspread library not installed"], []
 
     errors = []
+    notices = []
     uploaded_count = 0
 
     try:
         client = get_gspread_client()
     except Exception as e:
-        return 0, [f"Could not authenticate with Google Sheets: {str(e)}"]
+        return 0, [f"Could not authenticate with Google Sheets: {str(e)}"], []
 
     # Filter out excluded receipts
     receipts_to_upload, _ = _filter_excluded_receipts(receipts, print_warnings=False)
@@ -255,8 +257,20 @@ def upload_to_google_sheets(receipts: list[dict]) -> tuple[int, list[str]]:
                 uploaded_count += 1
             except Exception as e:
                 errors.append(f"Could not append receipt: {e}")
+        elif not normalized_date:
+            # Undated receipts dedupe on (vendor, amount) alone, so a genuinely
+            # distinct purchase can be mistaken for a duplicate. Advise the user
+            # instead of dropping it silently (issue #49).
+            vendor = receipt.get("vendor") or "Unknown vendor"
+            amount = receipt.get("amount") or 0
+            notices.append(
+                f"Skipped an undated receipt matching an existing "
+                f"'Unknown Date' entry ({vendor}, ${amount:.2f}). If this is a "
+                f"distinct purchase, add it manually — undated receipts with "
+                f"the same vendor and amount can't be told apart."
+            )
 
-    return uploaded_count, errors
+    return uploaded_count, errors, notices
 
 
 def process_receipts(files_to_process: dict, provider: str = "Anthropic") -> list[dict]:
@@ -759,12 +773,15 @@ def process_and_display_results(sheets_available: bool):
 
         if new_receipts:
             with st.spinner("Uploading to Google Sheets..."):
-                uploaded_count, errors = upload_to_google_sheets(new_receipts)
+                uploaded_count, errors, notices = upload_to_google_sheets(new_receipts)
 
             if uploaded_count > 0:
                 st.success(
                     f"Uploaded {uploaded_count} new receipt(s) to Google Sheets."
                 )
+
+            for notice in notices:
+                st.warning(notice)
 
             if errors:
                 for error in errors:
