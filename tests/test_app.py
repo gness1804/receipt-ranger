@@ -5,6 +5,12 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
+# Import app at module load time so app.py's top-level load_dotenv() runs during
+# collection (in a normal frame) rather than lazily inside a test function. When
+# the first `from app import ...` happens inside a pytest test frame, dotenv's
+# find_dotenv() frame-walk hits an AssertionError; importing here avoids that.
+import app  # noqa: E402,F401
+
 # ---------------------------------------------------------------------------
 # TestSession — tests for session.py encryption helpers
 # ---------------------------------------------------------------------------
@@ -228,8 +234,12 @@ class TestSheetsAvailability:
 
 
 class TestCheckGoogleSheetsSetup:
+    @patch.dict(os.environ, {"GOOGLE_SHEETS_CREDENTIALS": ""})
     @patch("sheets.os.path.exists")
     def test_missing_service_account_file(self, mock_exists):
+        # No env-var credentials and no file on disk → setup should report failure.
+        # GOOGLE_SHEETS_CREDENTIALS is cleared so get_gspread_client() falls through
+        # to the file-existence check that this test mocks away.
         mock_exists.return_value = False
         from app import check_google_sheets_setup
 
@@ -414,8 +424,10 @@ class TestUploadToGoogleSheets:
     def test_skips_existing_receipts(self, mock_client, mock_worksheet, mock_existing):
         mock_client.return_value = MagicMock()
         mock_worksheet.return_value = MagicMock()
-        # Receipt already exists in sheets
-        mock_existing.return_value = {("01/20/2026", "25.5", "Test Store")}
+        # Receipt already exists in sheets. get_existing_receipts() normalizes
+        # dates via _format_date_for_sheets (no leading zeros), so the stored key
+        # is "1/20/2026", matching the key upload_to_google_sheets() builds.
+        mock_existing.return_value = {("1/20/2026", "25.5", "Test Store")}
 
         from app import upload_to_google_sheets
 
@@ -613,7 +625,9 @@ class TestSheetsIntegration:
         result = get_all_existing_receipts(mock_client)
 
         assert len(result) == 1
-        assert ("01/20/2026", "25.50", "Test Store") in result
+        # get_existing_receipts() normalizes the date via _format_date_for_sheets,
+        # dropping leading zeros: "01/20/2026" -> "1/20/2026".
+        assert ("1/20/2026", "25.50", "Test Store") in result
 
     def test_check_receipts_for_duplicates(self):
         from sheets import check_receipts_for_duplicates
@@ -622,7 +636,10 @@ class TestSheetsIntegration:
 
         # Patch get_all_existing_receipts within the test
         with patch("sheets.get_all_existing_receipts") as mock_existing:
-            mock_existing.return_value = {("01/20/2026", "25.5", "Test Store")}
+            # get_all_existing_receipts returns normalized dates (no leading
+            # zeros), so the stored key is "1/20/2026" — matching the key that
+            # check_receipts_for_duplicates builds from the receipt below.
+            mock_existing.return_value = {("1/20/2026", "25.5", "Test Store")}
 
             receipts = [
                 {"date": "01/20/2026", "amount": 25.5, "vendor": "Test Store"},
