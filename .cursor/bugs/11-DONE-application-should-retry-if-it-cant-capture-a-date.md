@@ -19,3 +19,5 @@ If the application fails to capture a date for a particular receipt, either beca
 This will allow the user to only have to worry about entering in the date in Google Sheets manually, rather than having to enter in the entire recipe. If the date fails, the user will still be able to capture most of the information automatically. 
 
 ## Acceptance criteria
+
+<!-- DONE -->
