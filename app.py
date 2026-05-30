@@ -61,8 +61,8 @@ RECEIPT_PROCESSING_TIMEOUT = 60
 
 # API-key cookie persistence durations (in seconds). The Fernet-encrypted key
 # token is stored in a browser cookie; these control how long it survives.
-# SESSION_ONLY_MAX_AGE is None, which yields a browser-session cookie that the
-# browser clears when it closes.
+# SESSION_ONLY_MAX_AGE is None: no cookie is written at all (the library cannot
+# create a true session cookie), so the key lives only in the active session.
 SESSION_ONLY_MAX_AGE = None
 DEFAULT_KEY_MAX_AGE = 7 * 24 * 60 * 60  # 7 days
 REMEMBER_DEVICE_MAX_AGE = 90 * 24 * 60 * 60  # 90 days ("remember this device")
