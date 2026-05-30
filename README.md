@@ -227,7 +227,7 @@ Receipt Ranger is deployed on [Render](https://render.com) at https://receipt-ra
 
 ### App Behavior
 
-The deployed app uses a "bring your own API key" model — users enter their OpenAI/Anthropic keys via the web interface. Keys are Fernet-encrypted immediately on entry and stored only as an opaque token for the session.
+The deployed app uses a "bring your own API key" model — users enter their OpenAI/Anthropic keys via the web interface. Keys are Fernet-encrypted immediately on entry and stored only as an opaque token. A "Keep my key on this device" selector controls persistence: **This session only** (nothing saved — the key is dropped when the page reloads or the browser closes), **7 days** (default), or **Remember this device (90 days)**. The 7- and 90-day options store the encrypted token in a `Secure` cookie; the server also enforces a 90-day decrypt TTL so a captured token cannot be replayed indefinitely.
 
 ### Historical Deployment Notes
 
