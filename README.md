@@ -231,7 +231,7 @@ The deployed app uses a "bring your own API key" model — users enter their Ope
 
 ### Historical Deployment Notes
 
-The repo previously contained EC2 + nginx setup files in `deploy/` (now historical). A migration to AWS App Runner was attempted but failed because App Runner does not support WebSocket connections, which Streamlit requires.
+The repo previously contained EC2 + nginx setup files (a `deploy/` directory and a `deploy.sh` script), since removed; they remain in git history if needed. A migration to AWS App Runner was attempted but failed because App Runner does not support WebSocket connections, which Streamlit requires.
 
 ## Documentation
 
