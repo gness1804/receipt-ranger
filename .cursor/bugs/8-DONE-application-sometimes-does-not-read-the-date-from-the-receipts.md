@@ -16,3 +16,5 @@ Sometimes when processing a receipt, the application fails to read the date, eve
 Without loosening the receipt rules that we have in place and allowing the application to make silly mistakes like estimating dates that are in the future, we need to try to improve the application's accuracy at interpreting the date for the receipts. 
 
 ## Acceptance criteria
+
+<!-- DONE -->
