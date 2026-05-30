@@ -19,4 +19,6 @@ Build the application as a progressive web app (PWA). This will allow more flexi
 - No functionality will be lost in the Progressive Web App version unless that's absolutely necessary for some reason. 
 - The PWA will function the same as the current browser app. 
 
-We may need to solve certain security challenges, such as how to store the hash of the user's API key in a non-browser environment. 
+We may need to solve certain security challenges, such as how to store the hash of the user's API key in a non-browser environment.
+
+<!-- DONE -->
