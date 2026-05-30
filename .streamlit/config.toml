@@ -13,10 +13,11 @@ address = "0.0.0.0"
 # Default Streamlit port (Nginx will proxy to this)
 port = 8501
 
-# Disable XSRF protection and CORS when behind a reverse proxy (Cloudflare/Nginx).
-# These checks reject proxied requests because the origin/IP doesn't match.
-enableXsrfProtection = false
-enableCORS = false
+# XSRF and CORS protection are enabled (Streamlit defaults). The app is served
+# directly by Render with no origin-rewriting reverse proxy (Cloudflare is
+# DNS-only / grey-cloud), so these checks do not reject legitimate requests.
+enableXsrfProtection = true
+enableCORS = true
 
 # Max upload size in MB (receipts are typically small images)
 maxUploadSize = 10

@@ -84,6 +84,8 @@ DEFAULT_KEY_PERSISTENCE_INDEX = 1
 
 def is_owner_api_key() -> bool:
     """Check if the current session's API key matches the owner's key."""
+    import hmac
+
     from session import decrypt_api_key
 
     token = st.session_state.get("api_key_token", "")
@@ -91,10 +93,15 @@ def is_owner_api_key() -> bool:
     if not api_key:
         return False
     provider = st.session_state.get("api_provider", "OpenAI")
+    # Use a constant-time compare so response timing can't reveal the owner key.
     if provider == "OpenAI":
-        return bool(OWNER_OPENAI_API_KEY) and api_key == OWNER_OPENAI_API_KEY
+        return bool(OWNER_OPENAI_API_KEY) and hmac.compare_digest(
+            api_key, OWNER_OPENAI_API_KEY
+        )
     else:
-        return bool(OWNER_ANTHROPIC_API_KEY) and api_key == OWNER_ANTHROPIC_API_KEY
+        return bool(OWNER_ANTHROPIC_API_KEY) and hmac.compare_digest(
+            api_key, OWNER_ANTHROPIC_API_KEY
+        )
 
 
 def set_session_cookie(cookie, name: str, value: str, max_age: int | None) -> None:
