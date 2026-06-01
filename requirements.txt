@@ -19,3 +19,7 @@ streamlit-cookies-controller>=0.0.4
 
 # Environment variable loading
 python-dotenv>=1.0.0
+
+# HEIC/HEIF image support (iPhone receipts) - converted to JPEG before processing
+Pillow>=10.0.0
+pillow-heif>=0.16.0

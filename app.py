@@ -49,9 +49,24 @@ from main import (  # noqa: E402
     load_exclusion_criteria,
     _filter_excluded_receipts,
 )
+from image_conversion import (  # noqa: E402
+    HEICConversionError,
+    is_heic_filename,
+    maybe_convert_heic,
+)
 
 # Constants
-SUPPORTED_TYPES = ["jpg", "jpeg", "png", "gif", "bmp", "webp", "tiff"]
+SUPPORTED_TYPES = [
+    "jpg",
+    "jpeg",
+    "png",
+    "gif",
+    "bmp",
+    "webp",
+    "tiff",
+    "heic",
+    "heif",
+]
 GOOGLE_SHEETS_ENABLED = os.environ.get("ENABLE_GOOGLE_SHEETS", "true").lower() == "true"
 OWNER_OPENAI_API_KEY = os.environ.get("OWNER_OPENAI_API_KEY", "")
 OWNER_ANTHROPIC_API_KEY = os.environ.get("OWNER_ANTHROPIC_API_KEY", "")
@@ -583,7 +598,7 @@ def render_file_upload():
         type=SUPPORTED_TYPES,
         accept_multiple_files=True,
         key=f"file_uploader_{st.session_state.uploader_key}",
-        help="Supported formats: JPG, PNG, GIF, BMP, WebP, TIFF",
+        help="Supported formats: JPG, PNG, GIF, BMP, WebP, TIFF, HEIC",
     )
 
     # Process newly uploaded files
@@ -593,8 +608,26 @@ def render_file_upload():
             mime_type = get_mime_type(file.name)
             if not mime_type:
                 continue
+            file_bytes = file.getvalue()
+            display_name = file.name
+
+            # HEIC isn't reliably decoded by the upstream LLM providers, so
+            # convert it to JPEG transparently before queueing. The user sees
+            # the converted filename in the preview so it's clear what will
+            # be sent for processing.
+            if is_heic_filename(file.name):
+                try:
+                    file_bytes, mime_type = maybe_convert_heic(
+                        file_bytes, file.name, mime_type
+                    )
+                except HEICConversionError as e:
+                    st.error(f"Could not convert HEIC file `{file.name}`: {e}")
+                    continue
+                base, _ = os.path.splitext(file.name)
+                display_name = f"{base}.jpg"
+
             any_added = (
-                queue_uploaded_file(file.name, file.getvalue(), mime_type) or any_added
+                queue_uploaded_file(display_name, file_bytes, mime_type) or any_added
             )
 
     if any_added:
@@ -988,7 +1021,7 @@ def main_app():
     st.markdown(
         (
             '<div class="gn-footer">'
-            'Receipt Ranger · <span class="version">v0.12.0</span> · '
+            'Receipt Ranger · <span class="version">v0.13.0</span> · '
             "Structured data from receipt images."
             "</div>"
         ),

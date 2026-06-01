@@ -66,7 +66,7 @@ This launches a browser-based UI where you can:
 
 ### Command Line Interface
 
-Place receipt images (`.jpg`, `.jpeg`, `.png`, `.gif`, `.bmp`, `.webp`, `.tiff`) in `data/receipts/`, then run:
+Place receipt images (`.jpg`, `.jpeg`, `.png`, `.gif`, `.bmp`, `.webp`, `.tiff`, `.heic`/`.heif`) in `data/receipts/`, then run:
 
 ```bash
 python3 main.py
