@@ -11,6 +11,7 @@ COPY main.py .
 COPY session.py .
 COPY sheets.py .
 COPY design.py .
+COPY image_conversion.py .
 COPY pyproject.toml .
 
 # Copy auto-generated BAML client (do not edit manually)
