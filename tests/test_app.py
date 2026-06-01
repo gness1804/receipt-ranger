@@ -782,8 +782,9 @@ class TestSheetsIntegration:
 
         assert len(result) == 1
         # get_existing_receipts() normalizes the date via _format_date_for_sheets,
-        # dropping leading zeros: "01/20/2026" -> "1/20/2026".
-        assert ("1/20/2026", "25.50", "Test Store") in result
+        # dropping leading zeros ("01/20/2026" -> "1/20/2026"), and casefolds the
+        # vendor for case-insensitive dedupe ("Test Store" -> "test store").
+        assert ("1/20/2026", "25.50", "test store") in result
 
     def test_check_receipts_for_duplicates(self):
         from sheets import check_receipts_for_duplicates
@@ -793,9 +794,10 @@ class TestSheetsIntegration:
         # Patch get_all_existing_receipts within the test
         with patch("sheets.get_all_existing_receipts") as mock_existing:
             # get_all_existing_receipts returns normalized dates (no leading
-            # zeros), so the stored key is "1/20/2026" — matching the key that
+            # zeros) and casefolded vendors, so the stored key is
+            # ("1/20/2026", "25.5", "test store") — matching the key that
             # check_receipts_for_duplicates builds from the receipt below.
-            mock_existing.return_value = {("1/20/2026", "25.5", "Test Store")}
+            mock_existing.return_value = {("1/20/2026", "25.5", "test store")}
 
             receipts = [
                 {"date": "01/20/2026", "amount": 25.5, "vendor": "Test Store"},

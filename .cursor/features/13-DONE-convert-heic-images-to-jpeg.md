@@ -14,4 +14,6 @@ Include automatic functionality that converts HEIC images to JPEG. Whenever the 
 
 ## Acceptance criteria
 
-- When a user uploads an HEIC receipt image to the application, the application will convert it to JPEG and then process it as it normally would. 
+- When a user uploads an HEIC receipt image to the application, the application will convert it to JPEG and then process it as it normally would.
+
+<!-- DONE -->

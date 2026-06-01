@@ -23,6 +23,18 @@ def _format_date_for_sheets(date_str: str) -> str:
     return date_str
 
 
+def _normalize_vendor(vendor: Any) -> str:
+    """Normalize a vendor name for duplicate-detection comparisons only.
+
+    The LLM can return the same vendor in different casing or spacing across
+    runs (e.g. "BaanThai Thai Cuisine" vs "BAANTHAI THAI CUISINE"), which would
+    otherwise defeat dedupe. We casefold and collapse internal whitespace so
+    such variants compare equal. This affects ONLY the comparison key — the
+    original vendor string is still what gets written to the sheet.
+    """
+    return " ".join(str(vendor or "").split()).casefold()
+
+
 # Name of the credentials file. This file should be in the project root.
 SERVICE_ACCOUNT_FILE = "service_account.json"
 # The name of the Google Sheet to use.
@@ -94,7 +106,11 @@ def get_existing_receipts(worksheet: gspread.Worksheet) -> set:
         # The empty-string date keeps them distinct from any dated receipt.
         if amount and vendor:
             existing_receipts.add(
-                (_format_date_for_sheets(str(date)), str(amount), str(vendor))
+                (
+                    _format_date_for_sheets(str(date)),
+                    str(amount),
+                    _normalize_vendor(vendor),
+                )
             )
 
     return existing_receipts
@@ -287,7 +303,7 @@ def check_receipts_for_duplicates(
         receipt_key = (
             _format_date_for_sheets(str(receipt.get("date", ""))),
             str(receipt.get("amount", "")),
-            str(receipt.get("vendor", "")),
+            _normalize_vendor(receipt.get("vendor", "")),
         )
         if receipt_key in existing:
             duplicates.append(receipt)
