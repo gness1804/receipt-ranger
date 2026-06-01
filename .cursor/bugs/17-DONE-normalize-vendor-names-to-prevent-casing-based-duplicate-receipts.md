@@ -69,3 +69,5 @@ casing.
   not the CLI's `processed_receipts.json` content-hash path.
 
 ## Acceptance criteria
+
+<!-- DONE -->
