@@ -35,6 +35,33 @@ class TestSession:
 
         assert decrypt_api_key("") is None
 
+    def test_decrypt_rejects_token_older_than_ttl(self):
+        """An expired token (older than ttl) must decrypt to None."""
+        import time
+
+        import session
+        from session import decrypt_api_key
+
+        old_time = int(time.time()) - 1000
+        token = session._fernet.encrypt_at_time(b"sk-old-key", old_time).decode()
+
+        # 1000s old, ttl 500s -> expired -> None
+        assert decrypt_api_key(token, ttl=500) is None
+        # Same token within a larger ttl still decrypts.
+        assert decrypt_api_key(token, ttl=2000) == "sk-old-key"
+
+    def test_decrypt_ttl_none_disables_expiry(self):
+        """Passing ttl=None decrypts even a very old token."""
+        import time
+
+        import session
+        from session import decrypt_api_key
+
+        old_time = int(time.time()) - (400 * 24 * 60 * 60)  # ~400 days old
+        token = session._fernet.encrypt_at_time(b"sk-ancient-key", old_time).decode()
+
+        assert decrypt_api_key(token, ttl=None) == "sk-ancient-key"
+
     def test_mask_api_key_normal_key(self):
         from session import mask_api_key
 
@@ -90,6 +117,101 @@ class TestApiKeyDeferredCookieSave:
         assert fake["api_key_save_pending_provider"] is None
         assert fake["api_key_token"] == ""
         assert fake["api_key_clear_pending"] is False
+
+    def test_init_session_state_seeds_pending_max_age(self):
+        """init_session_state must seed the deferred-save TTL (feature #14).
+
+        main_app reads api_key_save_pending_max_age in the deferred-save
+        branch, so it must default to the standard 7-day lifetime.
+        """
+
+        class FakeSessionState(dict):
+            def __getattr__(self, k):
+                if k in self:
+                    return self[k]
+                raise AttributeError(k)
+
+            def __setattr__(self, k, v):
+                self[k] = v
+
+        fake = FakeSessionState()
+        with patch("app.st") as mock_st:
+            mock_st.session_state = fake
+            from app import DEFAULT_KEY_MAX_AGE, init_session_state
+
+            init_session_state()
+
+        assert fake["api_key_save_pending_max_age"] == DEFAULT_KEY_MAX_AGE
+
+
+class TestKeyPersistenceChoices:
+    """Tests for the 'remember this device' persistence options (feature #14)."""
+
+    def test_persistence_durations(self):
+        from app import (
+            DEFAULT_KEY_MAX_AGE,
+            REMEMBER_DEVICE_MAX_AGE,
+            SESSION_ONLY_MAX_AGE,
+        )
+
+        assert SESSION_ONLY_MAX_AGE is None
+        assert DEFAULT_KEY_MAX_AGE == 7 * 24 * 60 * 60
+        assert REMEMBER_DEVICE_MAX_AGE == 90 * 24 * 60 * 60
+
+    def test_default_selection_is_seven_days(self):
+        """The pre-selected option must preserve the prior 7-day behavior."""
+        from app import (
+            DEFAULT_KEY_MAX_AGE,
+            DEFAULT_KEY_PERSISTENCE_INDEX,
+            KEY_PERSISTENCE_LABELS,
+            KEY_PERSISTENCE_MAX_AGES,
+        )
+
+        default_label = KEY_PERSISTENCE_LABELS[DEFAULT_KEY_PERSISTENCE_INDEX]
+        assert KEY_PERSISTENCE_MAX_AGES[default_label] == DEFAULT_KEY_MAX_AGE
+
+    def test_every_label_maps_to_a_max_age(self):
+        from app import KEY_PERSISTENCE_LABELS, KEY_PERSISTENCE_MAX_AGES
+
+        assert set(KEY_PERSISTENCE_LABELS) == set(KEY_PERSISTENCE_MAX_AGES)
+
+
+class TestSetSessionCookie:
+    """Tests for set_session_cookie: optional max_age handling (feature #14)."""
+
+    def test_session_only_writes_no_cookie(self):
+        """A None max_age must NOT write a cookie.
+
+        streamlit-cookies-controller cannot create a true session cookie (its
+        frontend always stamps an expires date), so the session-only choice
+        keeps the token in session_state only and writes nothing.
+        """
+        from app import set_session_cookie
+
+        cookie = MagicMock()
+        set_session_cookie(cookie, "rr_session", "tok", None)
+
+        cookie.set.assert_not_called()
+
+    def test_explicit_max_age_is_passed_through(self):
+        from app import REMEMBER_DEVICE_MAX_AGE, set_session_cookie
+
+        cookie = MagicMock()
+        set_session_cookie(cookie, "rr_session", "tok", REMEMBER_DEVICE_MAX_AGE)
+
+        cookie.set.assert_called_once_with(
+            "rr_session", "tok", max_age=REMEMBER_DEVICE_MAX_AGE, secure=True
+        )
+
+    def test_always_secure(self):
+        """Every persistence cookie must be HTTPS-only (secure=True)."""
+        from app import DEFAULT_KEY_MAX_AGE, set_session_cookie
+
+        cookie = MagicMock()
+        set_session_cookie(cookie, "rr_provider", "OpenAI", DEFAULT_KEY_MAX_AGE)
+
+        _, kwargs = cookie.set.call_args
+        assert kwargs["secure"] is True
 
 
 class TestGetMimeType:

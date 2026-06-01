@@ -74,9 +74,33 @@ OWNER_ANTHROPIC_API_KEY = os.environ.get("OWNER_ANTHROPIC_API_KEY", "")
 # Timeout (in seconds) for a single LLM receipt-processing call.
 RECEIPT_PROCESSING_TIMEOUT = 60
 
+# API-key cookie persistence durations (in seconds). The Fernet-encrypted key
+# token is stored in a browser cookie; these control how long it survives.
+# SESSION_ONLY_MAX_AGE is None: no cookie is written at all (the library cannot
+# create a true session cookie), so the key lives only in the active session.
+SESSION_ONLY_MAX_AGE = None
+DEFAULT_KEY_MAX_AGE = 7 * 24 * 60 * 60  # 7 days
+REMEMBER_DEVICE_MAX_AGE = 90 * 24 * 60 * 60  # 90 days ("remember this device")
+
+# Ordered persistence choices shown in the API-key UI. "7 days" is the default
+# selection (preserves prior behavior); the other two are deliberate opt-ins.
+KEY_PERSISTENCE_LABELS = [
+    "This session only",
+    "7 days",
+    "Remember this device (90 days)",
+]
+KEY_PERSISTENCE_MAX_AGES = {
+    "This session only": SESSION_ONLY_MAX_AGE,
+    "7 days": DEFAULT_KEY_MAX_AGE,
+    "Remember this device (90 days)": REMEMBER_DEVICE_MAX_AGE,
+}
+DEFAULT_KEY_PERSISTENCE_INDEX = 1
+
 
 def is_owner_api_key() -> bool:
     """Check if the current session's API key matches the owner's key."""
+    import hmac
+
     from session import decrypt_api_key
 
     token = st.session_state.get("api_key_token", "")
@@ -84,10 +108,34 @@ def is_owner_api_key() -> bool:
     if not api_key:
         return False
     provider = st.session_state.get("api_provider", "OpenAI")
+    # Use a constant-time compare so response timing can't reveal the owner key.
     if provider == "OpenAI":
-        return bool(OWNER_OPENAI_API_KEY) and api_key == OWNER_OPENAI_API_KEY
+        return bool(OWNER_OPENAI_API_KEY) and hmac.compare_digest(
+            api_key, OWNER_OPENAI_API_KEY
+        )
     else:
-        return bool(OWNER_ANTHROPIC_API_KEY) and api_key == OWNER_ANTHROPIC_API_KEY
+        return bool(OWNER_ANTHROPIC_API_KEY) and hmac.compare_digest(
+            api_key, OWNER_ANTHROPIC_API_KEY
+        )
+
+
+def set_session_cookie(cookie, name: str, value: str, max_age: int | None) -> None:
+    """Write a persistence cookie, honoring an optional max_age.
+
+    max_age=None creates a true browser-session cookie (cleared when the
+    browser closes); a positive integer sets an explicit lifetime in seconds.
+    secure=True keeps the cookie HTTPS-only in production — browsers exempt
+    localhost from the Secure requirement, so local dev still works.
+
+    NOTE: streamlit-cookies-controller cannot create a true browser-session
+    cookie — its frontend always coerces ``options.expires`` to a Date, so
+    omitting it throws. For the session-only case we therefore write no cookie
+    at all: the encrypted token lives only in ``st.session_state`` for the
+    active session and is gone once that session ends.
+    """
+    if max_age is None:
+        return
+    cookie.set(name, value, max_age=max_age, secure=True)
 
 
 def get_mime_type(filename: str) -> str | None:
@@ -117,6 +165,8 @@ def init_session_state():
         st.session_state.api_key_save_pending_token = None
     if "api_key_save_pending_provider" not in st.session_state:
         st.session_state.api_key_save_pending_provider = None
+    if "api_key_save_pending_max_age" not in st.session_state:
+        st.session_state.api_key_save_pending_max_age = DEFAULT_KEY_MAX_AGE
     if "api_provider" not in st.session_state:
         st.session_state.api_provider = "OpenAI"
 
@@ -430,8 +480,8 @@ def render_sidebar(cookie=None) -> bool:
         with st.expander("API key", expanded=not has_token):
             st.markdown(
                 "Your key is encrypted with Fernet symmetric encryption and "
-                "stored as a secure browser cookie for 7 days — never saved "
-                "as plaintext."
+                "stored only as an opaque token — never as plaintext. Choose "
+                "how long to keep it on this device below."
             )
 
             provider = st.selectbox(
@@ -456,6 +506,21 @@ def render_sidebar(cookie=None) -> bool:
                         st.session_state.api_key_clear_pending = True
                     st.rerun()
             else:
+                persistence_label = st.selectbox(
+                    "Keep my key on this device",
+                    KEY_PERSISTENCE_LABELS,
+                    index=DEFAULT_KEY_PERSISTENCE_INDEX,
+                    key="key_persistence_choice",
+                    help=(
+                        "Choose 'This session only' on a shared or public "
+                        "computer — nothing is saved, so the key is dropped "
+                        "when you reload the page or close the browser. "
+                        "'7 days' and 'Remember this device (90 days)' save an "
+                        "encrypted cookie so you don't have to re-enter your "
+                        "key; pick 90 days for a personal phone or laptop you "
+                        "trust."
+                    ),
+                )
                 api_key = st.text_input(
                     "API key",
                     type="password",
@@ -474,6 +539,9 @@ def render_sidebar(cookie=None) -> bool:
                     if cookie is not None:
                         st.session_state.api_key_save_pending_token = token
                         st.session_state.api_key_save_pending_provider = provider
+                        st.session_state.api_key_save_pending_max_age = (
+                            KEY_PERSISTENCE_MAX_AGES[persistence_label]
+                        )
                     st.rerun()
 
         # Google Sheets status — owner only
@@ -918,20 +986,17 @@ def main_app():
     # document.cookie before being torn down.
     save_token = st.session_state.api_key_save_pending_token
     save_provider = st.session_state.api_key_save_pending_provider
+    save_max_age = st.session_state.api_key_save_pending_max_age
     if save_token:
-        # secure=True keeps the cookie HTTPS-only on production
-        # (receipt-ranger.com is HTTPS via Render). Browsers exempt localhost
-        # from the Secure requirement, so local dev still works.
-        cookie.set("rr_session", save_token, max_age=7 * 24 * 60 * 60, secure=True)
+        # save_max_age comes from the user's persistence choice: None for a
+        # session-only cookie, or a lifetime in seconds (7 or 90 days). The
+        # provider cookie uses the same lifetime as the key cookie.
+        set_session_cookie(cookie, "rr_session", save_token, save_max_age)
         if save_provider:
-            cookie.set(
-                "rr_provider",
-                save_provider,
-                max_age=7 * 24 * 60 * 60,
-                secure=True,
-            )
+            set_session_cookie(cookie, "rr_provider", save_provider, save_max_age)
         st.session_state.api_key_save_pending_token = None
         st.session_state.api_key_save_pending_provider = None
+        st.session_state.api_key_save_pending_max_age = DEFAULT_KEY_MAX_AGE
 
     if not clear_pending and not save_token:
         _load_cookie_to_session(cookie)

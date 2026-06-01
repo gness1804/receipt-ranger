@@ -14,6 +14,13 @@ import warnings
 
 from cryptography.fernet import Fernet, InvalidToken
 
+# Server-side expiry for encrypted key tokens, in seconds. Fernet embeds a
+# timestamp at encrypt time; passing this as `ttl` to decrypt() rejects any
+# token older than this regardless of how long the browser cookie survives.
+# Matches the longest cookie lifetime (REMEMBER_DEVICE_MAX_AGE = 90 days in
+# app.py), so a captured token cannot be replayed indefinitely.
+MAX_TOKEN_TTL = 90 * 24 * 60 * 60  # 90 days
+
 _SESSION_SECRET = os.environ.get("SESSION_SECRET", "")
 
 if not _SESSION_SECRET:
@@ -43,15 +50,20 @@ def encrypt_api_key(api_key: str) -> str:
     return _fernet.encrypt(api_key.encode()).decode()
 
 
-def decrypt_api_key(token: str) -> str | None:
+def decrypt_api_key(token: str, ttl: int | None = MAX_TOKEN_TTL) -> str | None:
     """Decrypt a session token and return the plaintext API key.
 
-    Returns None if the token is empty, invalid, or cannot be decrypted.
+    Tokens older than ``ttl`` seconds are rejected (server-side expiry), so a
+    captured token cannot be replayed indefinitely even if the browser cookie
+    that carried it is long-lived. Pass ``ttl=None`` to disable expiry.
+
+    Returns None if the token is empty, invalid, expired, or cannot be
+    decrypted.
     """
     if not token:
         return None
     try:
-        return _fernet.decrypt(token.encode()).decode()
+        return _fernet.decrypt(token.encode(), ttl=ttl).decode()
     except (InvalidToken, Exception):
         return None
 
