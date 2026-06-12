@@ -1,0 +1,34 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  dockerfile-copy-check:
+    name: Dockerfile COPY coverage
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      # Static check (no Docker build): every Python module imported at
+      # runtime must be COPY'd into the image. See CFS feature #15 / GH #87.
+      - name: Check runtime modules are COPY'd into the Docker image
+        run: python scripts/check_dockerfile_copies.py
+
+  tests:
+    name: pytest
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      - name: Install dependencies
+        run: pip install -r requirements.txt pytest
+      - name: Run test suite
+        run: pytest

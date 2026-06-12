@@ -245,6 +245,22 @@ The repo previously contained EC2 + nginx setup files (a `deploy/` directory and
 pytest
 ```
 
+### Continuous integration
+
+GitHub Actions (`.github/workflows/ci.yml`) runs on every PR and push to
+`main`:
+
+- **Dockerfile COPY coverage** — `python scripts/check_dockerfile_copies.py`
+  statically verifies that every local Python module imported at runtime
+  (directly or transitively from `app.py`/`main.py`) has a `COPY` line in the
+  Dockerfile. This exists because a missing `COPY` has taken production down
+  twice (`validation/`, then `image_conversion.py`): local dev and pytest pass
+  since the file exists in the repo, but the container crashes at startup with
+  `ModuleNotFoundError`. The check needs no Docker build and also runs from the
+  pre-commit hook. If it fails, add the suggested `COPY` line to the
+  Dockerfile.
+- **pytest** — the full test suite.
+
 ### Versioning
 
 This project uses [bump2version](https://github.com/c4urself/bump2version) for version management:
