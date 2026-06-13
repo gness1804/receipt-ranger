@@ -9,6 +9,12 @@ github_issue: 85
 
 ## Contents
 
+## Working directory
+
+`~/Desktop/receipt-ranger`
+
+## Contents
+
 ## Summary
 
 Google Sheets duplicate detection compares the **amount** as a raw string, so
@@ -49,7 +55,9 @@ that parses to a number and formats to a fixed precision, e.g.
 when the value can't be parsed. As with the vendor fix, normalization should
 affect **only the comparison key**, not the value written to the sheet.
 
+
 ## Acceptance criteria
+
 
 - A receipt with amount `25.5` is flagged as a duplicate of an existing sheet
   row showing `25.50` (same date + vendor).
@@ -64,5 +72,3 @@ affect **only the comparison key**, not the value written to the sheet.
 
 - This affects the Google Sheets dedup path, not the CLI's
   `processed_receipts.json` content-hash path.
-
-## Acceptance criteria

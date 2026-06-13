@@ -1,7 +1,13 @@
 ---
 github_issue: 87
 ---
-# Add Ci Check That All Runtime Python Modules Are Copyd Into The Docker Image
+# Add CI check that all runtime Python modules are COPYd into the Docker image
+
+## Working directory
+
+`~/Desktop/receipt-ranger`
+
+## Contents
 
 ## Working directory
 
@@ -57,7 +63,9 @@ Refinements to consider:
 - **Optionally** wire into the repo pre-commit hook so it's caught even
   earlier, before a commit lands.
 
+
 ## Acceptance criteria
+
 
 - Adding a tracked root module imported by `app.py`/`main.py` without a
   corresponding `COPY` line fails CI with a clear message naming the module.
@@ -71,5 +79,3 @@ Refinements to consider:
 - Out of scope: validating `requirements.txt` completeness or non-Python
   assets. This is specifically about local module COPY coverage in the
   Dockerfile.
-
-## Acceptance criteria
