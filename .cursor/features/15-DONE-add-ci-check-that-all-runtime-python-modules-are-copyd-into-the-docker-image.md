@@ -79,3 +79,5 @@ Refinements to consider:
 - Out of scope: validating `requirements.txt` completeness or non-Python
   assets. This is specifically about local module COPY coverage in the
   Dockerfile.
+
+<!-- DONE -->
