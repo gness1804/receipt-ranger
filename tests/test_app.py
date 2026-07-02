@@ -584,6 +584,26 @@ class TestUploadQueue:
         assert [e["duplicate"] for e in queue] == [False, True, True]
         assert len(files_to_process(queue)) == 1
 
+    @patch("app.st")
+    def test_files_beyond_upload_limit_are_flagged_and_skipped(self, mock_st):
+        mock_st.session_state.heic_cache = {}
+
+        from app import MAX_UPLOAD_FILES, build_upload_queue, files_to_process
+
+        uploads = [
+            FakeUpload(f"r{i}.jpg", f"content-{i}".encode())
+            for i in range(MAX_UPLOAD_FILES + 2)
+        ]
+        queue = build_upload_queue(uploads)
+
+        # Every chip still gets a queue entry (1:1 preview invariant)...
+        assert len(queue) == MAX_UPLOAD_FILES + 2
+        over_limit = queue[MAX_UPLOAD_FILES:]
+        assert all("Upload limit" in e["error"] for e in over_limit)
+        # ...but over-limit files are never read or processed.
+        assert all(e["bytes"] == b"" for e in over_limit)
+        assert len(files_to_process(queue)) == MAX_UPLOAD_FILES
+
     @patch("app.maybe_convert_heic")
     @patch("app.st")
     def test_heic_cache_prunes_entries_for_removed_files(self, mock_st, mock_convert):

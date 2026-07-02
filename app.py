@@ -75,6 +75,11 @@ OWNER_ANTHROPIC_API_KEY = os.environ.get("OWNER_ANTHROPIC_API_KEY", "")
 # Timeout (in seconds) for a single LLM receipt-processing call.
 RECEIPT_PROCESSING_TIMEOUT = 60
 
+# Maximum number of files accepted per upload batch. Bounds memory held per
+# session and LLM spend on the public endpoint; files beyond the limit are
+# flagged in the preview and skipped, never read into the queue.
+MAX_UPLOAD_FILES = 20
+
 # API-key cookie persistence durations (in seconds). The Fernet-encrypted key
 # token is stored in a browser cookie; these control how long it survives.
 # SESSION_ONLY_MAX_AGE is None: no cookie is written at all (the library cannot
@@ -225,7 +230,20 @@ def build_upload_queue(uploaded) -> list[dict]:
     entries = []
     seen_hashes = set()
 
-    for file in uploaded or []:
+    for idx, file in enumerate(uploaded or []):
+        if idx >= MAX_UPLOAD_FILES:
+            entries.append(
+                {
+                    "name": file.name,
+                    "bytes": b"",
+                    "mime": None,
+                    "sha256": f"over-limit-{idx}",
+                    "duplicate": False,
+                    "error": f"Upload limit is {MAX_UPLOAD_FILES} files",
+                }
+            )
+            continue
+
         file_bytes = file.getvalue()
         digest = hashlib.sha256(file_bytes).hexdigest()
         entry = {
