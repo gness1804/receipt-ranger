@@ -25,3 +25,5 @@ I tried fixing this before, but it kept introducing even worse bugs, so this has
 - No CSS hiding of the native file chips and no `st.rerun()` after upload (the
   two approaches that caused regressions in past attempts: an empty dropzone
   and a 5-10s mobile delay).
+
+<!-- DONE -->
