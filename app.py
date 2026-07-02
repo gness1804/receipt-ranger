@@ -1,6 +1,7 @@
 """Receipt Ranger - Streamlit Frontend"""
 
 import base64
+import hashlib
 import os
 from concurrent.futures import ThreadPoolExecutor, TimeoutError as FuturesTimeoutError
 
@@ -147,10 +148,12 @@ def get_mime_type(filename: str) -> str | None:
 
 def init_session_state():
     """Initialize session state variables."""
-    if "uploaded_files" not in st.session_state:
-        st.session_state.uploaded_files = {}
     if "uploader_key" not in st.session_state:
         st.session_state.uploader_key = 0
+    if "heic_cache" not in st.session_state:
+        st.session_state.heic_cache = {}
+    if "upload_signature" not in st.session_state:
+        st.session_state.upload_signature = None
     if "processing_results" not in st.session_state:
         st.session_state.processing_results = []
     if "processing_complete" not in st.session_state:
@@ -171,22 +174,12 @@ def init_session_state():
         st.session_state.api_provider = "OpenAI"
 
 
-def remove_file(filename: str):
-    """Remove a file from the upload queue."""
-    if filename in st.session_state.uploaded_files:
-        del st.session_state.uploaded_files[filename]
-    # Reset the uploader widget so Streamlit doesn't re-emit removed files.
-    st.session_state.uploader_key += 1
-    reset_processing()
-
-
 def clear_all_files():
-    """Clear all uploaded files."""
-    st.session_state.uploaded_files = {}
+    """Clear all uploaded files by resetting the uploader widget."""
     st.session_state.uploader_key += 1
-    st.session_state.processing_results = []
-    st.session_state.processing_complete = False
-    st.session_state.duplicates_found = []
+    st.session_state.heic_cache = {}
+    st.session_state.upload_signature = None
+    reset_processing()
 
 
 def reset_processing():
@@ -196,26 +189,96 @@ def reset_processing():
     st.session_state.duplicates_found = []
 
 
-def queue_uploaded_file(filename: str, file_bytes: bytes, mime_type: str) -> bool:
-    """Queue an uploaded file with collision-safe naming.
+def _convert_heic_cached(file_bytes: bytes, filename: str, mime_type: str, digest: str):
+    """Convert a HEIC upload to JPEG, caching by content hash.
 
-    Returns:
-        True when a new file was queued, False when it was an exact duplicate.
+    Streamlit reruns the whole script on every interaction, so without a cache
+    each rerun would re-convert every queued HEIC file. The cache entry is
+    ("ok", bytes, mime) on success or ("error", message, None) on failure.
     """
-    # Skip exact duplicate content already in the queue.
-    for existing_bytes, _ in st.session_state.uploaded_files.values():
-        if existing_bytes == file_bytes:
-            return False
+    cached = st.session_state.heic_cache.get(digest)
+    if cached is None:
+        try:
+            converted_bytes, converted_mime = maybe_convert_heic(
+                file_bytes, filename, mime_type
+            )
+            cached = ("ok", converted_bytes, converted_mime)
+        except HEICConversionError as e:
+            cached = ("error", str(e), None)
+        st.session_state.heic_cache[digest] = cached
+    return cached
 
-    base, ext = os.path.splitext(filename)
-    candidate = filename
-    suffix = 2
-    while candidate in st.session_state.uploaded_files:
-        candidate = f"{base} ({suffix}){ext}"
-        suffix += 1
 
-    st.session_state.uploaded_files[candidate] = (file_bytes, mime_type)
-    return True
+def build_upload_queue(uploaded) -> list[dict]:
+    """Project the uploader widget's current files into a processing queue.
+
+    The widget is the single source of truth (issue #19): this projection is
+    recomputed on every rerun, so the preview grid always matches the native
+    file chips one-to-one and removing a chip removes its thumbnail. Each
+    entry is a dict with:
+        name: original filename, exactly as shown on the widget's chip
+        bytes/mime: payload to send for processing (HEIC converted to JPEG)
+        sha256: content hash of the original upload
+        duplicate: True when an earlier entry has identical content
+        error: reason this entry can't be processed, or None
+    """
+    entries = []
+    seen_hashes = set()
+
+    for file in uploaded or []:
+        file_bytes = file.getvalue()
+        digest = hashlib.sha256(file_bytes).hexdigest()
+        entry = {
+            "name": file.name,
+            "bytes": file_bytes,
+            "mime": get_mime_type(file.name),
+            "sha256": digest,
+            "duplicate": digest in seen_hashes,
+            "error": None,
+        }
+        seen_hashes.add(digest)
+
+        if entry["mime"] is None:
+            entry["error"] = "Unsupported file type"
+        elif is_heic_filename(file.name):
+            # HEIC isn't reliably decoded by the upstream LLM providers, so
+            # convert it to JPEG transparently before processing.
+            cached = _convert_heic_cached(file_bytes, file.name, entry["mime"], digest)
+            if cached[0] == "ok":
+                entry["bytes"], entry["mime"] = cached[1], cached[2]
+            else:
+                entry["error"] = f"Could not convert HEIC file: {cached[1]}"
+
+        entries.append(entry)
+
+    # Drop cached conversions for files no longer in the widget so the cache
+    # can't grow without bound over a long session. Re-adding a removed HEIC
+    # file just costs one re-conversion.
+    stale = set(st.session_state.heic_cache) - seen_hashes
+    for digest in stale:
+        del st.session_state.heic_cache[digest]
+
+    return entries
+
+
+def files_to_process(queue: list[dict]) -> dict:
+    """Build the processing dict from queue entries, with collision-safe names.
+
+    Skips exact-content duplicates and entries that failed conversion, so each
+    receipt is only sent to the LLM once.
+    """
+    files = {}
+    for entry in queue:
+        if entry["duplicate"] or entry["error"]:
+            continue
+        base, ext = os.path.splitext(entry["name"])
+        candidate = entry["name"]
+        suffix = 2
+        while candidate in files:
+            candidate = f"{base} ({suffix}){ext}"
+            suffix += 1
+        files[candidate] = (entry["bytes"], entry["mime"])
+    return files
 
 
 def set_api_key_env():
@@ -338,11 +401,11 @@ def upload_to_google_sheets(receipts: list[dict]) -> tuple[int, list[str], list[
     return uploaded_count, errors, notices
 
 
-def process_receipts(files_to_process: dict, provider: str = "Anthropic") -> list[dict]:
+def process_receipts(files: dict, provider: str = "Anthropic") -> list[dict]:
     """Process uploaded receipt files.
 
     Args:
-        files_to_process: Dict mapping filename to (bytes, mime_type)
+        files: Dict mapping filename to (bytes, mime_type)
         provider: LLM provider to use ("Anthropic" or "OpenAI")
 
     Returns:
@@ -351,7 +414,7 @@ def process_receipts(files_to_process: dict, provider: str = "Anthropic") -> lis
     exclusion_criteria = load_exclusion_criteria()
     results = []
 
-    for filename, (file_bytes, mime_type) in files_to_process.items():
+    for filename, (file_bytes, mime_type) in files.items():
         try:
             # Encode to base64
             image_data = base64.standard_b64encode(file_bytes).decode("utf-8")
@@ -365,8 +428,6 @@ def process_receipts(files_to_process: dict, provider: str = "Anthropic") -> lis
             receipt_data["source_file"] = filename
 
             # Compute hash for state tracking
-            import hashlib
-
             h = hashlib.sha256()
             h.update(file_bytes)
             receipt_data["source_hash"] = h.hexdigest()
@@ -564,34 +625,14 @@ def render_sidebar(cookie=None) -> bool:
         return sheets_available
 
 
-def render_file_upload():
-    """Render the file upload section."""
-    st.subheader("Upload receipts")
+def render_file_upload() -> list[dict]:
+    """Render the file upload section and return the derived queue.
 
-    st.markdown(
-        """
-        <style>
-        /* Hide native file list rendered by Streamlit's file uploader.
-           We render our own thumbnail grid in render_file_preview(). */
-        [data-testid="stFileUploader"] [data-testid="stFileUploaderFile"] {
-            display: none !important;
-        }
-        [data-testid="stFileUploader"] [data-testid="stFileUploaderFileName"] {
-            display: none !important;
-        }
-        [data-testid="stFileUploader"] [data-testid="stFileUploaderDeleteBtn"] {
-            display: none !important;
-        }
-        [data-testid="stFileUploaderFileList"] {
-            display: none !important;
-        }
-        [data-testid="stFileUploaderFileList"] img {
-            display: none !important;
-        }
-        </style>
-        """,
-        unsafe_allow_html=True,
-    )
+    The native file chips (with their X buttons) stay visible: they are the
+    per-file removal UI, and the thumbnail grid below is derived from the
+    same widget value so the two can never disagree (issue #19).
+    """
+    st.subheader("Upload receipts")
 
     uploaded = st.file_uploader(
         "Drop receipt images here",
@@ -601,45 +642,31 @@ def render_file_upload():
         help="Supported formats: JPG, PNG, GIF, BMP, WebP, TIFF, HEIC",
     )
 
-    # Process newly uploaded files
-    any_added = False
-    if uploaded:
-        for file in uploaded:
-            mime_type = get_mime_type(file.name)
-            if not mime_type:
-                continue
-            file_bytes = file.getvalue()
-            display_name = file.name
+    queue = build_upload_queue(uploaded)
 
-            # HEIC isn't reliably decoded by the upstream LLM providers, so
-            # convert it to JPEG transparently before queueing. The user sees
-            # the converted filename in the preview so it's clear what will
-            # be sent for processing.
-            if is_heic_filename(file.name):
-                try:
-                    file_bytes, mime_type = maybe_convert_heic(
-                        file_bytes, file.name, mime_type
-                    )
-                except HEICConversionError as e:
-                    st.error(f"Could not convert HEIC file `{file.name}`: {e}")
-                    continue
-                base, _ = os.path.splitext(file.name)
-                display_name = f"{base}.jpg"
-
-            any_added = (
-                queue_uploaded_file(display_name, file_bytes, mime_type) or any_added
-            )
-
-    if any_added:
+    # Reset stale processing results whenever the processable files change
+    # (a file added or a chip removed), but not on unrelated reruns. Duplicate
+    # and error entries are excluded: adding an exact duplicate or an
+    # unprocessable file can't change the results, so it shouldn't wipe them.
+    signature = tuple(
+        entry["sha256"]
+        for entry in queue
+        if not entry["duplicate"] and not entry["error"]
+    )
+    if signature != st.session_state.upload_signature:
+        st.session_state.upload_signature = signature
         reset_processing()
 
+    return queue
 
-def render_file_preview():
-    """Render preview of uploaded files with remove buttons."""
-    if not st.session_state.uploaded_files:
+
+def render_file_preview(queue: list[dict]):
+    """Render thumbnails matching the uploader's file chips one-to-one."""
+    if not queue:
         return
 
     st.subheader("Selected files")
+    st.caption("To remove a file, click the X on its entry in the uploader above.")
 
     if st.button("Clear all", key="clear_all", icon=":material/delete_sweep:"):
         clear_all_files()
@@ -647,26 +674,22 @@ def render_file_preview():
 
     cols = st.columns(3)
 
-    for idx, (filename, (file_bytes, mime_type)) in enumerate(
-        st.session_state.uploaded_files.items()
-    ):
-        col = cols[idx % 3]
+    for idx, entry in enumerate(queue):
+        filename = entry["name"]
+        caption = filename[:20] + "..." if len(filename) > 20 else filename
 
-        with col:
-            with st.container():
-                caption = filename[:20] + "..." if len(filename) > 20 else filename
-                st.image(file_bytes, caption=caption, width=150)
-
-                if st.button(
-                    "Remove", key=f"remove_{filename}", icon=":material/close:"
-                ):
-                    remove_file(filename)
-                    st.rerun()
+        with cols[idx % 3]:
+            if entry["error"]:
+                st.warning(f"`{caption}` — {entry['error']}")
+            elif entry["duplicate"]:
+                st.image(entry["bytes"], caption=f"{caption} (duplicate)", width=150)
+            else:
+                st.image(entry["bytes"], caption=caption, width=150)
 
 
-def render_submit_section(sheets_available: bool):
+def render_submit_section(sheets_available: bool, queue: list[dict]):
     """Render the submit button and processing section."""
-    if not st.session_state.uploaded_files:
+    if not queue:
         st.info("Upload receipt images to get started.")
         return
 
@@ -676,7 +699,22 @@ def render_submit_section(sheets_available: bool):
 
     st.divider()
 
-    num_files = len(st.session_state.uploaded_files)
+    files = files_to_process(queue)
+    num_duplicates = sum(1 for e in queue if e["duplicate"] and not e["error"])
+    num_errors = sum(1 for e in queue if e["error"])
+
+    if num_duplicates:
+        st.caption(
+            f"{num_duplicates} exact duplicate file(s) will only be processed once."
+        )
+    if num_errors:
+        st.caption(f"{num_errors} file(s) cannot be processed and will be skipped.")
+
+    if not files:
+        st.warning("None of the uploaded files can be processed.")
+        return
+
+    num_files = len(files)
     submit_label = f"Process {num_files} receipt{'s' if num_files > 1 else ''}"
 
     if st.button(
@@ -685,15 +723,20 @@ def render_submit_section(sheets_available: bool):
         key="submit_btn",
         icon=":material/play_arrow:",
     ):
-        process_and_display_results(sheets_available)
+        process_and_display_results(sheets_available, files)
 
 
-def process_and_display_results(sheets_available: bool):
-    """Process receipts and display results."""
+def process_and_display_results(sheets_available: bool, files: dict):
+    """Process receipts and display results.
+
+    Args:
+        sheets_available: Whether Google Sheets upload is available.
+        files: Dict mapping filename to (file_bytes, mime_type).
+    """
     # Set the API key in environment
     set_api_key_env()
 
-    num_files = len(st.session_state.uploaded_files)
+    num_files = len(files)
 
     # Create a prominent processing container
     processing_container = st.container()
@@ -710,9 +753,7 @@ def process_and_display_results(sheets_available: bool):
         results = []
         exclusion_criteria = load_exclusion_criteria()
 
-        for idx, (filename, (file_bytes, mime_type)) in enumerate(
-            st.session_state.uploaded_files.items()
-        ):
+        for idx, (filename, (file_bytes, mime_type)) in enumerate(files.items()):
             # Update progress
             progress = (idx) / num_files
             progress_bar.progress(progress)
@@ -741,8 +782,6 @@ def process_and_display_results(sheets_available: bool):
                 receipt_data["source_file"] = filename
 
                 # Compute hash for state tracking
-                import hashlib
-
                 h = hashlib.sha256()
                 h.update(file_bytes)
                 receipt_data["source_hash"] = h.hexdigest()
@@ -1005,9 +1044,9 @@ def main_app():
 
     render_header()
 
-    render_file_upload()
-    render_file_preview()
-    render_submit_section(sheets_available)
+    queue = render_file_upload()
+    render_file_preview(queue)
+    render_submit_section(sheets_available, queue)
 
     if st.session_state.processing_complete and st.session_state.processing_results:
         valid_receipts = [
