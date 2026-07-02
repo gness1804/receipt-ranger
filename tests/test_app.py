@@ -449,33 +449,225 @@ class TestProcessReceipts:
         assert "Processing error" in results[0]["validationError"]
 
 
-class TestUploadQueueing:
+class FakeUpload:
+    """Minimal stand-in for Streamlit's UploadedFile."""
+
+    def __init__(self, name: str, data: bytes):
+        self.name = name
+        self._data = data
+
+    def getvalue(self) -> bytes:
+        return self._data
+
+
+class TestUploadQueue:
+    """Tests for the widget-derived upload queue (issue #19).
+
+    The queue is a pure projection of the uploader widget's current value,
+    so thumbnails always match the native file chips one-to-one.
+    """
+
     @patch("app.st")
-    def test_same_filename_different_content_gets_unique_name(self, mock_st):
-        mock_st.session_state.uploaded_files = {}
+    def test_queue_matches_widget_files_one_to_one(self, mock_st):
+        mock_st.session_state.heic_cache = {}
 
-        from app import queue_uploaded_file
+        from app import build_upload_queue
 
-        added_first = queue_uploaded_file("receipt.jpg", b"first", "image/jpeg")
-        added_second = queue_uploaded_file("receipt.jpg", b"second", "image/jpeg")
+        queue = build_upload_queue(
+            [FakeUpload("a.jpg", b"one"), FakeUpload("b.png", b"two")]
+        )
 
-        assert added_first is True
-        assert added_second is True
-        assert "receipt.jpg" in mock_st.session_state.uploaded_files
-        assert "receipt (2).jpg" in mock_st.session_state.uploaded_files
+        assert [e["name"] for e in queue] == ["a.jpg", "b.png"]
+        assert all(e["error"] is None for e in queue)
+        assert all(e["duplicate"] is False for e in queue)
 
     @patch("app.st")
-    def test_exact_duplicate_content_is_ignored(self, mock_st):
-        mock_st.session_state.uploaded_files = {}
+    def test_empty_or_none_widget_value_yields_empty_queue(self, mock_st):
+        mock_st.session_state.heic_cache = {}
 
-        from app import queue_uploaded_file
+        from app import build_upload_queue
 
-        added_first = queue_uploaded_file("receipt.jpg", b"same", "image/jpeg")
-        added_second = queue_uploaded_file("other-name.jpg", b"same", "image/jpeg")
+        assert build_upload_queue(None) == []
+        assert build_upload_queue([]) == []
 
-        assert added_first is True
-        assert added_second is False
-        assert len(mock_st.session_state.uploaded_files) == 1
+    @patch("app.st")
+    def test_removing_a_file_removes_its_queue_entry(self, mock_st):
+        """Simulates clicking the X on a native chip: the widget re-emits the
+        remaining files and the derived queue (thus thumbnails) must match."""
+        mock_st.session_state.heic_cache = {}
+
+        from app import build_upload_queue
+
+        first = build_upload_queue(
+            [FakeUpload("a.jpg", b"one"), FakeUpload("b.jpg", b"two")]
+        )
+        after_remove = build_upload_queue([FakeUpload("b.jpg", b"two")])
+
+        assert len(first) == 2
+        assert [e["name"] for e in after_remove] == ["b.jpg"]
+
+    @patch("app.st")
+    def test_exact_duplicate_content_is_marked_but_still_listed(self, mock_st):
+        mock_st.session_state.heic_cache = {}
+
+        from app import build_upload_queue, files_to_process
+
+        queue = build_upload_queue(
+            [FakeUpload("receipt.jpg", b"same"), FakeUpload("other.jpg", b"same")]
+        )
+
+        # Both entries stay in the queue (matching both chips)...
+        assert len(queue) == 2
+        assert queue[0]["duplicate"] is False
+        assert queue[1]["duplicate"] is True
+        # ...but the duplicate is only processed once.
+        assert list(files_to_process(queue).keys()) == ["receipt.jpg"]
+
+    @patch("app.st")
+    def test_same_filename_different_content_gets_unique_processing_name(self, mock_st):
+        mock_st.session_state.heic_cache = {}
+
+        from app import build_upload_queue, files_to_process
+
+        queue = build_upload_queue(
+            [FakeUpload("receipt.jpg", b"first"), FakeUpload("receipt.jpg", b"second")]
+        )
+        files = files_to_process(queue)
+
+        assert set(files.keys()) == {"receipt.jpg", "receipt (2).jpg"}
+
+    @patch("app.st")
+    def test_unsupported_extension_is_flagged_and_skipped(self, mock_st):
+        mock_st.session_state.heic_cache = {}
+
+        from app import build_upload_queue, files_to_process
+
+        queue = build_upload_queue([FakeUpload("notes.txt", b"hello")])
+
+        assert queue[0]["error"] == "Unsupported file type"
+        assert files_to_process(queue) == {}
+
+    @patch("app.maybe_convert_heic")
+    @patch("app.st")
+    def test_heic_is_converted_and_cached_across_reruns(self, mock_st, mock_convert):
+        mock_st.session_state.heic_cache = {}
+        mock_convert.return_value = (b"jpeg-bytes", "image/jpeg")
+
+        from app import build_upload_queue
+
+        upload = [FakeUpload("photo.heic", b"heic-bytes")]
+        queue = build_upload_queue(upload)
+        # Second build simulates a Streamlit rerun with the same widget value.
+        queue_again = build_upload_queue(upload)
+
+        assert queue[0]["bytes"] == b"jpeg-bytes"
+        assert queue[0]["mime"] == "image/jpeg"
+        assert queue[0]["name"] == "photo.heic"  # caption matches the chip
+        assert queue_again[0]["bytes"] == b"jpeg-bytes"
+        mock_convert.assert_called_once()
+
+    @patch("app.st")
+    def test_three_identical_files_process_once(self, mock_st):
+        mock_st.session_state.heic_cache = {}
+
+        from app import build_upload_queue, files_to_process
+
+        queue = build_upload_queue(
+            [
+                FakeUpload("a.jpg", b"same"),
+                FakeUpload("b.jpg", b"same"),
+                FakeUpload("c.jpg", b"same"),
+            ]
+        )
+
+        assert len(queue) == 3
+        assert [e["duplicate"] for e in queue] == [False, True, True]
+        assert len(files_to_process(queue)) == 1
+
+    @patch("app.st")
+    def test_files_beyond_upload_limit_are_flagged_and_skipped(self, mock_st):
+        mock_st.session_state.heic_cache = {}
+
+        from app import MAX_UPLOAD_FILES, build_upload_queue, files_to_process
+
+        uploads = [
+            FakeUpload(f"r{i}.jpg", f"content-{i}".encode())
+            for i in range(MAX_UPLOAD_FILES + 2)
+        ]
+        queue = build_upload_queue(uploads)
+
+        # Every chip still gets a queue entry (1:1 preview invariant)...
+        assert len(queue) == MAX_UPLOAD_FILES + 2
+        over_limit = queue[MAX_UPLOAD_FILES:]
+        assert all("Upload limit" in e["error"] for e in over_limit)
+        # ...but over-limit files are never read or processed.
+        assert all(e["bytes"] == b"" for e in over_limit)
+        assert len(files_to_process(queue)) == MAX_UPLOAD_FILES
+
+    @patch("app.maybe_convert_heic")
+    @patch("app.st")
+    def test_heic_cache_prunes_entries_for_removed_files(self, mock_st, mock_convert):
+        """Removing a HEIC file's chip must also evict its cached conversion."""
+        mock_st.session_state.heic_cache = {}
+        mock_convert.return_value = (b"jpeg-bytes", "image/jpeg")
+
+        from app import build_upload_queue
+
+        build_upload_queue([FakeUpload("photo.heic", b"heic-bytes")])
+        assert len(mock_st.session_state.heic_cache) == 1
+
+        # Rerun after the user removed the chip: widget value is empty.
+        build_upload_queue([])
+        assert mock_st.session_state.heic_cache == {}
+
+    def test_clear_all_files_resets_uploader_and_caches(self):
+        class FakeSessionState(dict):
+            def __getattr__(self, k):
+                if k in self:
+                    return self[k]
+                raise AttributeError(k)
+
+            def __setattr__(self, k, v):
+                self[k] = v
+
+        fake = FakeSessionState()
+        fake["uploader_key"] = 3
+        fake["heic_cache"] = {"digest": ("ok", b"x", "image/jpeg")}
+        fake["upload_signature"] = ("digest",)
+        fake["processing_results"] = [{"vendor": "Old"}]
+        fake["processing_complete"] = True
+        fake["duplicates_found"] = [{"vendor": "Old"}]
+
+        with patch("app.st") as mock_st:
+            mock_st.session_state = fake
+            from app import clear_all_files
+
+            clear_all_files()
+
+        assert fake["uploader_key"] == 4  # widget reset clears the chips
+        assert fake["heic_cache"] == {}
+        assert fake["upload_signature"] is None
+        assert fake["processing_results"] == []
+        assert fake["processing_complete"] is False
+        assert fake["duplicates_found"] == []
+
+    @patch("app.maybe_convert_heic")
+    @patch("app.st")
+    def test_heic_conversion_failure_is_flagged_and_skipped(
+        self, mock_st, mock_convert
+    ):
+        from image_conversion import HEICConversionError
+
+        mock_st.session_state.heic_cache = {}
+        mock_convert.side_effect = HEICConversionError("bad file")
+
+        from app import build_upload_queue, files_to_process
+
+        queue = build_upload_queue([FakeUpload("photo.heic", b"heic-bytes")])
+
+        assert queue[0]["error"] is not None
+        assert "bad file" in queue[0]["error"]
+        assert files_to_process(queue) == {}
 
 
 class TestCheckForDuplicates:
@@ -646,16 +838,15 @@ class TestReceiptProcessingTimeout:
         mock_extract.side_effect = slow_extract
 
         mock_st.session_state = MagicMock()
-        mock_st.session_state.uploaded_files = {
-            "slow.jpg": (b"fake", "image/jpeg"),
-        }
         mock_st.session_state.api_provider = "OpenAI"
         mock_st.session_state.processing_results = []
         mock_st.session_state.processing_complete = False
 
         from app import process_and_display_results
 
-        process_and_display_results(sheets_available=False)
+        process_and_display_results(
+            sheets_available=False, files={"slow.jpg": (b"fake", "image/jpeg")}
+        )
 
         # Unblock the orphaned thread so it cleans up quickly.
         event.set()
@@ -684,9 +875,6 @@ class TestReceiptProcessingTimeout:
         }
 
         mock_st.session_state = MagicMock()
-        mock_st.session_state.uploaded_files = {
-            "fast.jpg": (b"fake", "image/jpeg"),
-        }
         mock_st.session_state.api_provider = "Anthropic"
         mock_st.session_state.processing_results = []
         mock_st.session_state.processing_complete = False
@@ -694,7 +882,9 @@ class TestReceiptProcessingTimeout:
 
         from app import process_and_display_results
 
-        process_and_display_results(sheets_available=False)
+        process_and_display_results(
+            sheets_available=False, files={"fast.jpg": (b"fake", "image/jpeg")}
+        )
 
         results = mock_st.session_state.processing_results
         assert len(results) == 1
@@ -739,17 +929,19 @@ class TestReceiptProcessingTimeout:
         mock_extract.side_effect = mixed_extract
 
         mock_st.session_state = MagicMock()
-        mock_st.session_state.uploaded_files = {
-            "slow.jpg": (b"fake1", "image/jpeg"),
-            "fast.jpg": (b"fake2", "image/jpeg"),
-        }
         mock_st.session_state.api_provider = "OpenAI"
         mock_st.session_state.processing_results = []
         mock_st.session_state.processing_complete = False
 
         from app import process_and_display_results
 
-        process_and_display_results(sheets_available=False)
+        process_and_display_results(
+            sheets_available=False,
+            files={
+                "slow.jpg": (b"fake1", "image/jpeg"),
+                "fast.jpg": (b"fake2", "image/jpeg"),
+            },
+        )
         event.set()
 
         results = mock_st.session_state.processing_results
