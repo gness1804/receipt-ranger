@@ -43,6 +43,19 @@ SESSION_SECRET=your-fernet-key-here
 
 If `SESSION_SECRET` is unset, a random key is generated at startup (fine for local dev, but tokens won't survive a server restart).
 
+## Git hooks
+
+Hooks live in a tracked `.githooks/` directory, but git does not pick them up
+automatically. Run this once per clone:
+
+```bash
+git config core.hooksPath .githooks
+```
+
+They block AWS account IDs, ARNs, access keys and private-key headers in staged
+content, in filenames, and in the commit message. Until you run that line, a
+fresh clone commits unprotected.
+
 ## Usage
 
 ### Web Interface (Recommended)
