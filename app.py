@@ -1078,7 +1078,7 @@ def main_app():
     st.markdown(
         (
             '<div class="gn-footer">'
-            'Receipt Ranger · <span class="version">v0.14.1</span> · '
+            'Receipt Ranger · <span class="version">v0.14.2</span> · '
             "Structured data from receipt images."
             "</div>"
         ),
