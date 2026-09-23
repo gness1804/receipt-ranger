@@ -83,9 +83,9 @@ template_string ReceiptExtractionPrompt(image: image, exclusionCriteria: string,
     {{ ctx.output_format }}
 "#
 
-// Anthropic version (Claude Sonnet 4)
+// Anthropic version (Claude Sonnet 5)
 function ExtractReceiptFromImage(image: image, exclusionCriteria: string, currentDate: string) -> Receipt {
-    client "CustomSonnet4"
+    client "CustomSonnet5"
     prompt #"{{ ReceiptExtractionPrompt(image, exclusionCriteria, currentDate) }}"#
 }
 

@@ -27,20 +27,26 @@ client<llm> CustomGPT5Chat {
   }
 }
 
-// Latest Anthropic Claude 4 models
+// Anthropic Claude models. Sonnet 4, Opus 4.1, and Haiku 3.5 were retired;
+// calls to their IDs return not_found_error.
 client<llm> CustomOpus4 {
   provider anthropic
   options {
-    model "claude-opus-4-1-20250805"
+    model "claude-opus-4-8"
     api_key env.ANTHROPIC_API_KEY
   }
 }
 
-client<llm> CustomSonnet4 {
+// Thinking is disabled: Sonnet 5 turns adaptive thinking on by default, which
+// adds latency and cost without helping literal receipt extraction.
+client<llm> CustomSonnet5 {
   provider anthropic
   options {
-    model "claude-sonnet-4-20250514"
+    model "claude-sonnet-5"
     api_key env.ANTHROPIC_API_KEY
+    thinking {
+      type "disabled"
+    }
   }
 }
 
@@ -48,7 +54,7 @@ client<llm> CustomHaiku {
   provider anthropic
   retry_policy Constant
   options {
-    model "claude-3-5-haiku-20241022"
+    model "claude-haiku-4-5"
     api_key env.ANTHROPIC_API_KEY
   }
 }

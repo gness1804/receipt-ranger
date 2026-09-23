@@ -9,7 +9,7 @@ class Resume {
 // Create a function to extract the resume from a string.
 function ExtractResume(resume: string) -> Resume {
   // Specify a client as provider/model-name
-  // You can also use custom LLM params with a custom client name from clients.baml like "client CustomGPT5" or "client CustomSonnet4"
+  // You can also use custom LLM params with a custom client name from clients.baml like "client CustomGPT5" or "client CustomSonnet5"
   client "openai-responses/gpt-5-mini" // Set OPENAI_API_KEY to use this client.
   prompt #"
     Extract from this content:
