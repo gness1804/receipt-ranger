@@ -23,3 +23,9 @@ python-dotenv>=1.0.0
 # HEIC/HEIF image support (iPhone receipts) - converted to JPEG before processing
 Pillow>=10.0.0
 pillow-heif>=0.16.0
+
+# CA bundle (transitive via google-auth/requests). Floor set explicitly because
+# certifi < 2026.10.19 still trusts the compromised eMudhra intermediates
+# (disclosed 2026-10-19). Changing this file also invalidates Docker's
+# cached pip layer, so the next build actually pulls the new bundle.
+certifi>=2026.10.19
