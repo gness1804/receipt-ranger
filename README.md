@@ -286,4 +286,4 @@ bump2version major   # 0.1.0 -> 1.0.0
 
 ## License
 
-MIT
+MIT. See [LICENSE](LICENSE).
