@@ -1,10 +1,14 @@
 // Learn more about clients at https://docs.boundaryml.com/docs/snippets/clients/overview
 
+// GPT-5 models are pinned to dated snapshots. OpenAI removes the undated
+// aliases (gpt-5, gpt-5-mini) on 2026-12-11; the snapshots are the
+// replacements listed at https://platform.openai.com/docs/deprecations.
+
 // Using the new OpenAI Responses API for enhanced formatting
 client<llm> CustomGPT5 {
   provider openai-responses
   options {
-    model "gpt-5"
+    model "gpt-5-2025-08-07"
     api_key env.OPENAI_API_KEY
   }
 }
@@ -13,7 +17,7 @@ client<llm> CustomGPT5Mini {
   provider openai-responses
   retry_policy Exponential
   options {
-    model "gpt-5-mini"
+    model "gpt-5-mini-2025-08-07"
     api_key env.OPENAI_API_KEY
   }
 }
@@ -22,7 +26,7 @@ client<llm> CustomGPT5Mini {
 client<llm> CustomGPT5Chat {
   provider openai
   options {
-    model "gpt-5"
+    model "gpt-5-2025-08-07"
     api_key env.OPENAI_API_KEY
   }
 }
