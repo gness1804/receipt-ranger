@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "receipt-ranger"
-version = "0.14.3"
+version = "0.14.4"
 description = "Receipt scanner that extracts structured data from receipt images using BAML and LLMs"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -36,9 +36,13 @@ dev = [
 
 [tool.ruff]
 exclude = ["baml_client/*", "baml_src/*"]
+# The pre-commit hook passes staged files by name, which bypasses `exclude`
+# unless force-exclude is set. baml_client/ is generated, so never lint it.
+force-exclude = true
 
 [tool.black]
 exclude = '/(baml_client|baml_src)/'
+force-exclude = '/(baml_client|baml_src)/'
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
