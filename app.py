@@ -818,7 +818,7 @@ def process_and_display_results(sheets_available: bool, files: dict):
                         "source_file": filename,
                         "isValidReceipt": False,
                         "validationError": (
-                            f"Timed out after " f"{RECEIPT_PROCESSING_TIMEOUT}s"
+                            f"Timed out after {RECEIPT_PROCESSING_TIMEOUT}s"
                         ),
                         "id": "",
                         "amount": 0.0,
@@ -831,9 +831,7 @@ def process_and_display_results(sheets_available: bool, files: dict):
                     }
                 )
             except PromptInjectionError as e:
-                st.error(
-                    f"**Security Alert:** Processing halted for `{filename}`. " f"{e}"
-                )
+                st.error(f"**Security Alert:** Processing halted for `{filename}`. {e}")
                 results.append(
                     {
                         "source_file": filename,
