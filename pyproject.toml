@@ -35,14 +35,12 @@ dev = [
 ]
 
 [tool.ruff]
-exclude = ["baml_client/*", "baml_src/*"]
+# .githooks/scan_identifiers.py is vendored byte-identical across repos, so
+# never reformat it here (see the LINTER SECTION comment in .githooks/pre-commit).
+exclude = ["baml_client/*", "baml_src/*", ".githooks/*"]
 # The pre-commit hook passes staged files by name, which bypasses `exclude`
 # unless force-exclude is set. baml_client/ is generated, so never lint it.
 force-exclude = true
-
-[tool.black]
-exclude = '/(baml_client|baml_src)/'
-force-exclude = '/(baml_client|baml_src)/'
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
