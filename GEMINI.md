@@ -133,4 +133,4 @@ bump2version major   # breaking changes
 - Keep `baml_src/.env` out of version control.
 - Output files go in `output/`, debug/temp files go in `.cursor/tmp/`.
 - Follow PEP 8 for all Python code.
-- The `pyproject.toml` excludes `baml_client/` and `baml_src/` from ruff and black linting.
+- The `pyproject.toml` excludes `baml_client/` and `baml_src/` from ruff linting and formatting.

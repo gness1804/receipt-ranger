@@ -107,9 +107,9 @@ if [ -n "$py_files" ]; then
       exit 1
     }
   fi
-  if command -v black >/dev/null 2>&1; then
-    printf '%s\n' "$py_files" | tr '\n' '\0' | xargs -0 black --check || {
-      echo "pre-commit: black --check failed. Run 'black' on the files (or --no-verify)." >&2
+  if command -v ruff >/dev/null 2>&1; then
+    printf '%s\n' "$py_files" | tr '\n' '\0' | xargs -0 ruff format --check || {
+      echo "pre-commit: ruff format --check failed. Run 'ruff format' on the files (or --no-verify)." >&2
       exit 1
     }
   fi

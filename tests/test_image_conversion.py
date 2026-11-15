@@ -81,9 +81,7 @@ class TestConvertHeicToJpeg:
 class TestMaybeConvertHeic:
     def test_passes_through_non_heic(self):
         original = b"\x89PNG\r\n\x1a\n" + b"\x00" * 100
-        out_bytes, out_mime = maybe_convert_heic(
-            original, "receipt.png", "image/png"
-        )
+        out_bytes, out_mime = maybe_convert_heic(original, "receipt.png", "image/png")
         assert out_bytes is original
         assert out_mime == "image/png"
 
