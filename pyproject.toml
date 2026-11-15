@@ -18,7 +18,7 @@ classifiers = [
 ]
 
 dependencies = [
-    "baml-py>=0.218.0",
+    "baml-py>=0.226.3",
     "cryptography>=41.0.0",
     "gspread>=5.12.4",
     "streamlit-cookies-controller>=0.0.4",
